@@ -61,3 +61,9 @@ See the README, Phase 4. Import creates **unverified drafts**. Review each again
 3. "Failed to load module script" or a 404 for `/src/main.tsx`: Vercel did not build the app. In Project Settings set Framework Preset to Vite, Build Command `npm run build`, Output Directory `dist`, and Root Directory to the folder that directly contains `package.json`.
 4. In GitHub, the repository root must show `package.json`, `index.html` and `src` directly, not inside another folder.
 5. In Vercel, Deployments, a red deployment means the build failed. Open it and send the build log.
+
+## Load the catalogue data (after the site works)
+1. Run SQL migration `0007_page_previews.sql` in the Supabase SQL Editor.
+2. Sign in as Super Admin, open **Import**, upload `rexnord-products-import.csv`, type the catalogue name, tick **Create categories that do not exist yet**, confirm, and import.
+3. Open **Review**, tick **Select all on this page**, and choose **Publish (keep Not verified)**. Repeat for each page. Users then see the products with a warning label.
+4. Optional page images: in Supabase, Storage, open the `page-previews` bucket and upload the JPG files from `catalogue-page-previews.zip` (unzip first). Only do this if Ultraplast may republish the catalogue pages.

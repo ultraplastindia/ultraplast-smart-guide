@@ -44,3 +44,10 @@ export async function openDocument(bucket: 'technical-documents' | 'product-imag
   if (error || !data) throw new Error(error?.message ?? 'Could not create a download link')
   window.open(data.signedUrl, '_blank', 'noopener')
 }
+
+/** Signed link to the catalogue page image, or null when no image was uploaded for that page. */
+export async function pagePreviewUrl(page: number | null): Promise<string | null> {
+  if (!page) return null
+  const { data, error } = await supabase.storage.from('page-previews').createSignedUrl(`page-${String(page).padStart(4, '0')}.jpg`, 300)
+  return error || !data ? null : data.signedUrl
+}

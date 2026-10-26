@@ -152,8 +152,10 @@ def parse_toc_text(text):
     for line in text.splitlines():
         for m in ENTRY.finditer(line):
             title = re.sub(r'\s*[.\u2026\u00b7]{2,}.*$', '', re.sub(r'\s+', ' ', m.group('title'))).strip(' .')
-            if len(title) >= 3:
-                entries.append((title, int(m.group('page'))))
+            page = int(m.group('page'))
+            title = re.sub(r'\.\s*\.+.*$', '', title).strip(' .')   # leftover dot leaders ("Series Sprockets. . we")
+            if len(title) >= 3 and page > 0 and not re.match(r'^pag\b', title, re.I):
+                entries.append((title, page))
     return entries
 
 
@@ -216,11 +218,21 @@ def cmd_build(a):
     work = Path(a.out)
     toc = list(csv.DictReader(open(work / 'toc.csv', newline='', encoding='utf-8')))
     pages = load_pages(work)
-    section, products = '', []
+    sections = []
+    sec_file = Path(a.sections)
+    if sec_file.exists():
+        sections = [(int(r['page']), r['title']) for r in csv.DictReader(open(sec_file, newline='', encoding='utf-8'))]
+    sections.sort()
+    def section_for(page):
+        found = ''
+        for sp, st in sections:
+            if sp <= page: found = st
+        return found
+    products, seen = [], Counter()
     for r in toc:
-        if r['kind'] == 'section': section = r['title'].title(); continue
         if r['kind'] != 'product': continue
         pg = int(r['page']); pr = pages.get(pg)
+        section = section_for(pg)
         flags = ['series_level_record_code_is_title', 'ocr_unverified'] + (['toc_page_suspect'] if r.get('suspect') else [])
         specs, conf = {}, None
         if pr is None: flags.append('page_not_ocred')
@@ -231,7 +243,10 @@ def cmd_build(a):
             if not s: flags.append('no_specs_parsed')
         pitch = specs.get('Chain pitch (mm)')
         width = specs.get('Chain width (mm)')
-        products.append({'product_code': r['title'], 'name': r['title'], 'category': section, 'brand': '', 'description': '',
+        norm = normalise(r['title']); seen[norm] += 1
+        code = r['title'] if seen[norm] == 1 else f"{r['title']} (p.{pg})"
+        if seen[norm] > 1: flags.append('duplicate_title_page_added_to_code')
+        products.append({'product_code': code, 'name': r['title'], 'category': section, 'brand': '', 'description': '',
                          'material': '', 'pitch_mm': pitch or '', 'width_mm': width or '', 'thickness_mm': '', 'colour': '',
                          'application': '', 'source_page': pg, 'drawing_ref': '', 'ocr_confidence': conf if conf is not None else '',
                          'flags': ';'.join(flags), **{f'spec:{k}': v for k, v in specs.items()}})
@@ -275,6 +290,7 @@ def main():
     sub.choices['ocr'].add_argument('--psm', type=int, default=4)
     sub.choices['ocr'].add_argument('--force', action='store_true')
     sp = sub.add_parser('build'); sp.add_argument('--catalogue-name', required=True)
+    sp.add_argument('--sections', default='scripts/sections.csv', help='CSV (page,title) of category start pages')
     a = ap.parse_args()
     {'info': cmd_info, 'ocr': cmd_ocr, 'toc': cmd_toc, 'build': cmd_build, 'previews': cmd_previews}[a.cmd](a)
 
