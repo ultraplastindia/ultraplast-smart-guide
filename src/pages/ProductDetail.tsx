@@ -93,7 +93,7 @@ export default function ProductDetail() {
           </section>
         </div>
 
-        <aside className="space-y-5 lg:sticky lg:top-4 self-start">
+        <aside className="space-y-5 lg:sticky lg:top-20 self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
           <div className={`px-3 py-2 text-sm ${verified ? 'bg-green-100 text-green-950' : 'bg-amber-100 text-amber-950'}`}>
             <strong>{STATUS[p.verification_status] ?? show(null)}</strong>
             {!verified && <p>Not checked against the original catalogue. Check page {show(p.source_page)} before relying on it.</p>}

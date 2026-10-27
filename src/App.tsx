@@ -15,6 +15,8 @@ import AdminReview from './pages/AdminReview'
 import Documents from './pages/Documents'
 import BomPage from './pages/Bom'
 import Compare from './pages/Compare'
+import AdminProducts from './pages/AdminProducts'
+import AdminCategories from './pages/AdminCategories'
 import AdminDashboard from './pages/AdminDashboard'
 import { Dashboard, Help, Profile } from './pages/Account'
 
@@ -46,6 +48,9 @@ export default function App() {
           <Route element={<RequirePermission permission="manage_catalogue" />}>
             <Route path="admin" element={<AdminDashboard />} />
             <Route path="admin/review" element={<AdminReview />} />
+            <Route path="admin/products" element={<AdminProducts />} />
+            <Route path="admin/products/:id" element={<AdminProducts />} />
+            <Route path="admin/categories" element={<AdminCategories />} />
           </Route>
           <Route path="help" element={<Help />} />
         </Route>

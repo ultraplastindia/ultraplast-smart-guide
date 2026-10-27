@@ -51,6 +51,8 @@ export default function AdminDashboard() {
       <p className="text-sm space-x-4">
         {can('manage_users') && <Link className="underline" to="/admin/access">User access</Link>}
         {can('manage_imports') && <Link className="underline" to="/admin/import">Import</Link>}
+        <Link className="underline" to="/admin/products">Products</Link>
+        <Link className="underline" to="/admin/categories">Categories</Link>
         <Link className="underline" to="/admin/review">Review queue</Link>
         {can('upload_documents') && <Link className="underline" to="/documents">Documents</Link>}
       </p>
