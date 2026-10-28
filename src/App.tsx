@@ -17,6 +17,7 @@ import BomPage from './pages/Bom'
 import Compare from './pages/Compare'
 import AdminProducts from './pages/AdminProducts'
 import AdminCategories from './pages/AdminCategories'
+import AdminImages from './pages/AdminImages'
 import AdminDashboard from './pages/AdminDashboard'
 import { Dashboard, Help, Profile } from './pages/Account'
 
@@ -51,6 +52,7 @@ export default function App() {
             <Route path="admin/products" element={<AdminProducts />} />
             <Route path="admin/products/:id" element={<AdminProducts />} />
             <Route path="admin/categories" element={<AdminCategories />} />
+            <Route path="admin/images" element={<AdminImages />} />
           </Route>
           <Route path="help" element={<Help />} />
         </Route>

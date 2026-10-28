@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chunk, issuesToCsv, normaliseCode, validateRows } from '../src/lib/importer'
+import { chunk, issuesToCsv, normaliseCode, parseImageName, validateRows } from '../src/lib/importer'
 
 describe('import validation', () => {
   it('accepts a good row and keeps spec columns with their case', () => {
@@ -25,5 +25,11 @@ describe('import validation', () => {
   it('chunks into batches and escapes the error CSV', () => {
     expect(chunk([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]])
     expect(issuesToCsv([{ line: 2, code: 'A"B', message: 'bad, row' }])).toBe('line,product_code,message\n2,"A""B","bad, row"')
+  })
+  it('reads product code and image number from image file names', () => {
+    expect(parseImageName('NGE2124FT-K134VG.jpg')).toEqual({ code: 'NGE2124FT-K134VG', index: 1 })
+    expect(parseImageName('NGE2124FT-K134VG__2.PNG')).toEqual({ code: 'NGE2124FT-K134VG', index: 2 })
+    expect(parseImageName('.jpg')).toBeNull()
+    expect(parseImageName('___.png')).toBeNull()
   })
 })

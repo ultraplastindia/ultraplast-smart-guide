@@ -67,3 +67,12 @@ export function issuesToCsv(issues: Issue[]): string {
   const esc = (s: string) => `"${s.replace(/"/g, '""')}"`
   return ['line,product_code,message', ...issues.map((i) => [i.line, esc(i.code), esc(i.message)].join(','))].join('\n')
 }
+
+/** Image file name rule: CODE.jpg is the first image, CODE__2.jpg the second, and so on. */
+export function parseImageName(fileName: string): { code: string; index: number } | null {
+  const stem = fileName.replace(/\.[^.]+$/, '')
+  const m = /^(.*?)(?:__(\d{1,3}))?$/.exec(stem)
+  const code = (m?.[1] ?? '').trim()
+  if (!code || !normaliseCode(code)) return null
+  return { code, index: m?.[2] ? Number(m[2]) : 1 }
+}

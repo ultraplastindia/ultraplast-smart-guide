@@ -39,3 +39,5 @@ Apply `0006_boms.sql`. BOMs are private to their owner. Excel and PDF exports ca
 
 ## Adding data by hand (no code or SQL)
 Sign in as admin, open **Admin**. **Categories**: add, rename, reorder, hide, link to an explorer area. **Products**: New product, fill in the fields and specifications, Save, then add images. **Import**: many products at once from CSV or Excel. **Documents**: CAD files and datasheets.
+
+**Bulk images:** Admin, Bulk images. Name each file after its product code (`CODE.jpg`, `CODE__2.jpg` for a second image) and select many files at once.
