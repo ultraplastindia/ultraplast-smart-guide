@@ -4,11 +4,13 @@ import { supabase } from '../lib/supabase'
 import { show } from '../lib/format'
 import { openDocument, pagePreviewUrl } from '../lib/catalogue'
 import AddToBom, { CompareToggle } from '../components/AddToBom'
+import ShareBar from '../components/ShareBar'
 
 interface Detail {
   id: string; product_code: string; name: string; category_id: string | null; brand: string | null; description: string | null; material: string | null
   pitch_mm: number | null; width_mm: number | null; thickness_mm: number | null; colour: string | null; application: string | null
   verification_status: string; source_page: number | null; drawing_ref: string | null
+  product_category_links: { product_categories: { name: string } | null }[]
   product_categories: { name: string } | null; catalogues: { name: string; edition: string | null } | null
   product_specifications: { spec_key: string; spec_value: string; unit: string | null; source_page: number | null }[]
   technical_documents: { id: string; title: string; doc_type: string; storage_path: string }[]
@@ -29,7 +31,7 @@ export default function ProductDetail() {
     setP(null); setPreview(null); setImages([]); setRelated([]); setErr('')
     ;(async () => {
       const { data, error } = await supabase.from('products')
-        .select('*,product_categories(name),catalogues(name,edition),product_specifications(spec_key,spec_value,unit,source_page),technical_documents(id,title,doc_type,storage_path)')
+        .select('*,product_categories(name),product_category_links(product_categories(name)),catalogues(name,edition),product_specifications(spec_key,spec_value,unit,source_page),technical_documents(id,title,doc_type,storage_path)')
         .eq('id', id ?? '').maybeSingle()
       if (!live) return
       if (error) return setErr(error.message)
@@ -55,8 +57,9 @@ export default function ProductDetail() {
   if (!p) return <p role="status" className="text-steel-600">Loading product…</p>
 
   const mm = (v: number | null) => (v === null ? show(null) : `${v} mm`)
+  const catNames = show((p.product_category_links ?? []).map((l) => l.product_categories?.name).filter(Boolean).join(', ') || p.product_categories?.name)
   const fields: [string, string][] = [
-    ['Product code', p.product_code], ['Category', show(p.product_categories?.name)], ['Brand', show(p.brand)],
+    ['Product code', p.product_code], ['Categories', catNames], ['Brand', show(p.brand)],
     ['Material', show(p.material)], ['Pitch', mm(p.pitch_mm)], ['Width', mm(p.width_mm)], ['Thickness', mm(p.thickness_mm)],
     ['Colour', show(p.colour)], ['Application', show(p.application)],
     ['Catalogue', p.catalogues ? `${p.catalogues.name}${p.catalogues.edition ? ` (${p.catalogues.edition})` : ''}` : show(null)],
@@ -69,6 +72,8 @@ export default function ProductDetail() {
         <Link className="underline" to="/catalogue">Catalogue</Link> / {p.category_id ? <Link className="underline" to={`/catalogue?category=${p.category_id}`}>{show(p.product_categories?.name)}</Link> : 'Uncategorised'} / <span>{p.product_code}</span>
       </nav>
       <header className="border-b border-steel-300 pb-3"><h1 className="text-2xl font-bold">{p.name}</h1><p className="font-mono text-steel-600">{p.product_code}</p></header>
+
+      <ShareBar kind="product" id={p.id} name={p.name} />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]">
         <div className="space-y-6">

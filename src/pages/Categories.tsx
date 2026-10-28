@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { listCategories, type Category } from '../lib/catalogue'
+import ShareBar from '../components/ShareBar'
 
 export default function Categories() {
   const [sp] = useSearchParams()
@@ -22,6 +23,7 @@ export default function Categories() {
               <span className="font-medium">{c.name}</span>
               {c.description && <span className="block text-sm text-steel-600 mt-1">{c.description}</span>}
             </Link>
+            <div className="px-4 pb-3"><ShareBar kind="category" id={c.id} name={c.name} /></div>
           </li>
         ))}
       </ul>

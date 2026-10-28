@@ -14,7 +14,7 @@ export async function exportExcel(d: BomExport) {
   const bold = (value: string) => ({ value, fontWeight: 'bold' as const })
   const heads = ['Item', 'Product code', 'Description', 'Category', 'Qty', 'Material', 'Pitch (mm)', 'Width (mm)', 'Thickness (mm)', 'Catalogue page', 'Data status', 'Specifications', 'Notes']
   const rows: unknown[][] = [
-    [bold('Ultraplast Smart Conveyor Guide: Bill of Materials')],
+    [bold('Ultraplast Chainbelts Pvt. Ltd.: Bill of Materials')],
     [bold('Reference'), { value: d.bom.reference }], [bold('Name'), { value: d.bom.name }],
     [bold('Project'), { value: na(d.bom.project) }], [bold('Date'), { value: dateText(d.generated_at) }],
     [],
@@ -39,7 +39,7 @@ export async function exportExcel(d: BomExport) {
 }
 const NA_TEXT = 'Not available'
 
-async function loadLogo(): Promise<string | null> {
+export async function loadLogo(): Promise<string | null> {
   try {
     const res = await fetch('/logo.png')
     if (!res.ok || !(res.headers.get('content-type') ?? '').includes('image')) return null
@@ -59,7 +59,7 @@ export async function exportPdf(d: BomExport) {
     x = 14 + (12 * p.width) / p.height + 6
   }
   doc.setFontSize(15).text('Bill of Materials', x, 14)
-  doc.setFontSize(9).text('Ultraplast Smart Conveyor Guide', x, 19)
+  doc.setFontSize(9).text('Ultraplast Chainbelts Pvt. Ltd.', x, 19)
   doc.text(`Reference: ${d.bom.reference}    Name: ${d.bom.name}    Project: ${na(d.bom.project)}    Date: ${dateText(d.generated_at)}`, 14, 27)
 
   const body: unknown[][] = []

@@ -37,6 +37,7 @@ export default function Login() {
   return (
     <div className="min-h-screen grid place-items-center p-4">
       <form onSubmit={submit} className="w-full max-w-md bg-white border border-steel-300 p-6 space-y-4" noValidate>
+        <a href="https://www.ultraplastindia.com/" target="_blank" rel="noopener noreferrer" className="block text-sm font-semibold text-belt-700 underline">Ultraplast Chainbelts Pvt. Ltd.</a>
         <h1 className="text-2xl font-bold">{request ? 'Request access' : 'Sign in'}</h1>
         {request && (<>
           <div><label htmlFor="n" className="text-sm font-medium">Full name</label><input id="n" className={field} value={f.name} onChange={set('name')} autoComplete="name" /></div>

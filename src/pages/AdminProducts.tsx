@@ -5,7 +5,7 @@ import { useAuth } from '../lib/auth'
 import { show } from '../lib/format'
 
 const SIZE = 50
-const EMPTY = { product_code: '', name: '', category_id: '', brand: '', description: '', material: '', pitch_mm: '', width_mm: '', thickness_mm: '',
+const EMPTY = { product_code: '', name: '', brand: '', description: '', material: '', pitch_mm: '', width_mm: '', thickness_mm: '',
   colour: '', application: '', status: 'draft', verification_status: 'unverified', catalogue_id: '', source_page: '', drawing_ref: '' }
 type Form = typeof EMPTY
 interface SpecRow { id?: string; origKey?: string; key: string; value: string; unit: string }
@@ -86,6 +86,9 @@ function Editor({ id }: { id: string }) {
   const [cats2, setCats2] = useState<{ id: string; name: string }[]>([])
   const [images, setImages] = useState<Img[]>([])
   const [caption, setCaption] = useState('')
+  const [catIds, setCatIds] = useState<string[]>([])
+  const [origCats, setOrigCats] = useState<string[]>([])
+  const [pending, setPending] = useState<File[]>([])
   const [msg, setMsg] = useState<Msg>(null)
   const [busy, setBusy] = useState(false)
 
@@ -93,12 +96,14 @@ function Editor({ id }: { id: string }) {
     const [c, k] = await Promise.all([supabase.from('product_categories').select('id,name').order('name'), supabase.from('catalogues').select('id,name').order('name')])
     setCats(c.data ?? []); setCats2(k.data ?? [])
     if (isNew) return
-    const { data, error } = await supabase.from('products').select('*,product_specifications(id,spec_key,spec_value,unit),product_images(id,storage_path,caption,sort_order)').eq('id', id).maybeSingle()
+    const { data, error } = await supabase.from('products').select('*,product_specifications(id,spec_key,spec_value,unit),product_images(id,storage_path,caption,sort_order),product_category_links(category_id)').eq('id', id).maybeSingle()
     if (error || !data) return setMsg({ ok: false, text: error?.message ?? 'Product not found.' })
     const s = (v: unknown) => (v === null || v === undefined ? '' : String(v))
-    setF({ product_code: s(data.product_code), name: s(data.name), category_id: s(data.category_id), brand: s(data.brand), description: s(data.description), material: s(data.material),
+    setF({ product_code: s(data.product_code), name: s(data.name), brand: s(data.brand), description: s(data.description), material: s(data.material),
       pitch_mm: s(data.pitch_mm), width_mm: s(data.width_mm), thickness_mm: s(data.thickness_mm), colour: s(data.colour), application: s(data.application),
       status: s(data.status), verification_status: s(data.verification_status), catalogue_id: s(data.catalogue_id), source_page: s(data.source_page), drawing_ref: s(data.drawing_ref) })
+    const links = ((data.product_category_links ?? []) as { category_id: string }[]).map((l) => l.category_id)
+    setCatIds(links); setOrigCats(links)
     const rows = (data.product_specifications ?? []) as { id: string; spec_key: string; spec_value: string; unit: string | null }[]
     setSpecs(rows.map((r) => ({ id: r.id, origKey: r.spec_key, key: r.spec_key, value: r.spec_value, unit: r.unit ?? '' }))); setOrigIds(rows.map((r) => r.id))
     const imgs = ((data.product_images ?? []) as Omit<Img, 'url'>[]).sort((a, b) => a.sort_order - b.sort_order)
@@ -120,7 +125,8 @@ function Editor({ id }: { id: string }) {
     const keep = specs.map((s) => ({ ...s, key: s.key.trim(), value: s.value.trim(), unit: s.unit.trim() })).filter((s) => s.key && s.value)
     if (new Set(keep.map((s) => s.key.toLowerCase())).size !== keep.length) return fail('Two specifications have the same name.')
     setBusy(true)
-    const payload = { product_code: f.product_code.trim(), name: f.name.trim(), category_id: f.category_id || null, brand: nz(f.brand), description: nz(f.description), material: nz(f.material),
+    const chosen = cats.filter((c) => catIds.includes(c.id)).map((c) => c.id)
+    const payload = { product_code: f.product_code.trim(), name: f.name.trim(), category_id: chosen[0] ?? null, brand: nz(f.brand), description: nz(f.description), material: nz(f.material),
       ...nums, colour: nz(f.colour), application: nz(f.application), status: f.status, verification_status: f.verification_status, catalogue_id: f.catalogue_id || null,
       source_page: sp ? Number(sp) : null, drawing_ref: nz(f.drawing_ref) }
     let pid = id
@@ -139,22 +145,46 @@ function Editor({ id }: { id: string }) {
       const r = await supabase.from('product_specifications').upsert(keep.map((s) => ({ product_id: pid, spec_key: s.key, spec_value: s.value, unit: s.unit || null, source_page: sp ? Number(sp) : null })), { onConflict: 'product_id,spec_key' })
       if (r.error) return fail(r.error.message)
     }
+    const addCats = chosen.filter((c) => !origCats.includes(c))
+    const delCats = origCats.filter((c) => !chosen.includes(c))
+    if (delCats.length) { const r = await supabase.from('product_category_links').delete().eq('product_id', pid).in('category_id', delCats); if (r.error) return fail(r.error.message) }
+    if (addCats.length) {
+      const r = await supabase.from('product_category_links').upsert(addCats.map((c) => ({ product_id: pid, category_id: c })), { onConflict: 'product_id,category_id', ignoreDuplicates: true })
+      if (r.error) return fail(r.error.message)
+    }
+    if (isNew && pending.length) {
+      const bad = await uploadMany(pid, pending, 0)
+      setPending([])
+      if (bad.length) { setBusy(false); setMsg({ ok: false, text: `Product saved, but some images failed: ${bad.join('; ')}` }); nav(`/admin/products/${pid}`, { replace: true }); return }
+    }
     setBusy(false); setMsg({ ok: true, text: 'Saved.' })
     if (isNew) nav(`/admin/products/${pid}`, { replace: true }); else await load()
   }
 
-  const upload = async (file: File | null) => {
-    if (!file || isNew) return
-    setMsg(null)
-    if (!/\.(png|jpe?g|webp)$/i.test(file.name)) return fail('Images must be PNG, JPG or WEBP.')
-    if (file.size > 5 * 1024 * 1024) return fail('Image is larger than 5 MB.')
-    setBusy(true)
-    const path = `${id}/${crypto.randomUUID()}-${file.name.replace(/[^A-Za-z0-9._-]/g, '_')}`
-    const up = await supabase.storage.from('product-images').upload(path, file, { contentType: file.type, upsert: false })
-    if (up.error) return fail(up.error.message)
-    const ins = await supabase.from('product_images').insert({ product_id: id, storage_path: path, caption: nz(caption), sort_order: images.length, is_primary: images.length === 0 })
-    if (ins.error) { await supabase.storage.from('product-images').remove([path]); return fail(ins.error.message) }
-    setCaption(''); setBusy(false); setMsg({ ok: true, text: 'Image uploaded.' }); await load()
+  const uploadMany = async (pid: string, files: File[], startOrder: number): Promise<string[]> => {
+    const failed: string[] = []
+    let order = startOrder
+    for (const file of files) {
+      if (!/\.(png|jpe?g|webp)$/i.test(file.name)) { failed.push(`${file.name}: use PNG, JPG or WEBP`); continue }
+      if (file.size > 5 * 1024 * 1024) { failed.push(`${file.name}: larger than 5 MB`); continue }
+      const path = `${pid}/${crypto.randomUUID()}-${file.name.replace(/[^A-Za-z0-9._-]/g, '_')}`
+      const up = await supabase.storage.from('product-images').upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false })
+      if (up.error) { failed.push(`${file.name}: ${up.error.message}`); continue }
+      const ins = await supabase.from('product_images').insert({ product_id: pid, storage_path: path, caption: nz(caption), sort_order: order, is_primary: order === 0 })
+      if (ins.error) { await supabase.storage.from('product-images').remove([path]); failed.push(`${file.name}: ${ins.error.message}`); continue }
+      order += 1
+    }
+    return failed
+  }
+  const upload = async (list: FileList | null) => {
+    const files = [...(list ?? [])]
+    if (files.length === 0) return
+    if (isNew) { setPending((cur) => [...cur, ...files]); return }
+    setMsg(null); setBusy(true)
+    const bad = await uploadMany(id, files, images.length)
+    setCaption(''); setBusy(false)
+    setMsg(bad.length ? { ok: false, text: `Some images failed: ${bad.join('; ')}` } : { ok: true, text: `${files.length} image(s) uploaded.` })
+    await load()
   }
   const removeImage = async (img: Img) => {
     if (!window.confirm('Delete this image?')) return
@@ -173,7 +203,14 @@ function Editor({ id }: { id: string }) {
         <h2 id="gd" className="sm:col-span-2 font-semibold">Details</h2>
         <Field label="Product code *"><input className={inp} maxLength={120} value={f.product_code} onChange={set('product_code')} /></Field>
         <Field label="Name *"><input className={inp} maxLength={300} value={f.name} onChange={set('name')} /></Field>
-        <Field label="Category"><select className={inp} value={f.category_id} onChange={set('category_id')}><option value="">No category</option>{cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+        <fieldset className="sm:col-span-2 border border-steel-300 bg-white p-3">
+          <legend className="px-1 text-sm font-medium">Categories (tick one or more)</legend>
+          {cats.length === 0 ? <p className="text-sm text-steel-600">No categories yet. Add them under Admin, Categories.</p> : (
+            <div className="grid gap-1 sm:grid-cols-2 max-h-48 overflow-auto">
+              {cats.map((c) => <label key={c.id} className="flex items-center gap-2 text-sm font-normal"><input type="checkbox" checked={catIds.includes(c.id)} onChange={() => setCatIds(catIds.includes(c.id) ? catIds.filter((x) => x !== c.id) : [...catIds, c.id])} /> {c.name}</label>)}
+            </div>)}
+          <p className="mt-2 text-xs text-steel-600">The product appears under every ticked category. The first ticked category in this list is its main category.</p>
+        </fieldset>
         <Field label="Brand"><input className={inp} maxLength={200} value={f.brand} onChange={set('brand')} /></Field>
         <Field label="Material"><input className={inp} maxLength={200} value={f.material} onChange={set('material')} /></Field>
         <Field label="Colour"><input className={inp} maxLength={100} value={f.colour} onChange={set('colour')} /></Field>
@@ -207,17 +244,16 @@ function Editor({ id }: { id: string }) {
 
       <section aria-labelledby="im" className="space-y-2">
         <h2 id="im" className="font-semibold">Images</h2>
-        {isNew ? <p className="text-sm text-steel-600">Save the product first, then add images.</p> : (<>
-          <div className="flex flex-wrap items-end gap-2">
-            <div><label htmlFor="ic" className="block text-xs text-steel-600">Caption (optional)</label><input id="ic" className={inp} maxLength={200} value={caption} onChange={(e) => setCaption(e.target.value)} /></div>
-            <div><label htmlFor="if" className="block text-xs text-steel-600">Image (PNG, JPG or WEBP, up to 5 MB)</label><input id="if" type="file" accept=".png,.jpg,.jpeg,.webp" onChange={(e) => { void upload(e.target.files?.[0] ?? null); e.target.value = '' }} /></div>
-          </div>
-          {images.length === 0 ? <p className="text-sm text-steel-600">No images yet.</p> : (
-            <ul className="flex flex-wrap gap-3">{images.map((im) => (
-              <li key={im.id} className="border border-steel-300 bg-white p-2 text-sm">
-                {im.url ? <img src={im.url} alt={im.caption ?? 'Product'} className="h-32" /> : <p className="h-32 grid place-items-center">Not available</p>}
-                <p className="mt-1">{im.caption ?? ''}</p><button className="underline text-red-700" onClick={() => void removeImage(im)}>Delete</button></li>))}</ul>)}
-        </>)}
+        <div className="flex flex-wrap items-end gap-2">
+          <div><label htmlFor="ic" className="block text-xs text-steel-600">Caption for these images (optional)</label><input id="ic" className={inp} maxLength={200} value={caption} onChange={(e) => setCaption(e.target.value)} /></div>
+          <div><label htmlFor="if" className="block text-xs text-steel-600">Images: select several at once (PNG, JPG or WEBP, up to 5 MB each)</label><input id="if" type="file" multiple accept=".png,.jpg,.jpeg,.webp" onChange={(e) => { void upload(e.target.files); e.target.value = '' }} /></div>
+        </div>
+        {isNew && pending.length > 0 && <p className="text-sm">{pending.length} image(s) will upload when you save: {pending.map((f) => f.name).join(', ')} <button className="underline ml-2" onClick={() => setPending([])}>Clear</button></p>}
+        {!isNew && (images.length === 0 ? <p className="text-sm text-steel-600">No images yet.</p> : (
+          <ul className="flex flex-wrap gap-3">{images.map((im) => (
+            <li key={im.id} className="border border-steel-300 bg-white p-2 text-sm">
+              {im.url ? <img src={im.url} alt={im.caption ?? 'Product'} className="h-32" /> : <p className="h-32 grid place-items-center">Not available</p>}
+              <p className="mt-1">{im.caption ?? ''}</p><button className="underline text-red-700" onClick={() => void removeImage(im)}>Delete</button></li>))}</ul>))}
       </section>
     </div>
   )

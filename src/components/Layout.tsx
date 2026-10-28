@@ -17,6 +17,7 @@ const NAV = [
 
 export default function Layout() {
   const [open, setOpen] = useState(false)
+  const [logoOk, setLogoOk] = useState(true)
   const { signOut, session, can } = useAuth()
   const link = ({ isActive }: { isActive: boolean }) =>
     `block px-3 py-2 rounded-sm text-sm font-medium ${isActive ? 'bg-amber-chain text-steel-950' : 'text-steel-100 hover:bg-steel-800'}`
@@ -25,9 +26,10 @@ export default function Layout() {
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:p-2">Skip to content</a>
       <header className="sticky top-0 z-40 bg-steel-950 print:hidden">
         <div className="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between gap-4">
-          <NavLink to="/" className="text-white font-bold tracking-tight text-lg">
-            Ultraplast <span className="text-amber-chain">Smart Conveyor Guide</span>
-          </NavLink>
+          <a href="https://www.ultraplastindia.com/" target="_blank" rel="noopener noreferrer" aria-label="Ultraplast Chainbelts Pvt. Ltd. website" className="flex items-center gap-3 text-white font-bold tracking-tight text-lg">
+            {logoOk && <img src="/logo.png" alt="" className="h-8 w-auto bg-white px-2 py-1 rounded-sm" onError={() => setLogoOk(false)} />}
+            <span>Ultraplast Chainbelts Pvt. Ltd.</span>
+          </a>
           <button className="lg:hidden text-white p-2" aria-expanded={open} aria-label="Toggle menu" onClick={() => setOpen(!open)}>
             {open ? <X /> : <Menu />}
           </button>
@@ -45,7 +47,7 @@ export default function Layout() {
       </header>
       <main id="main" className="flex-1 mx-auto w-full max-w-7xl px-4 py-8"><Outlet /></main>
       <footer className="print:hidden border-t border-steel-300 py-4 text-center text-xs text-steel-600">
-        Ultraplast Chainbelts — internal engineering guide. Data shown as “Not available” when unverified.
+        Ultraplast Chainbelts Pvt. Ltd. — internal engineering guide. Data shown as “Not available” when unverified.
       </footer>
     </div>
   )

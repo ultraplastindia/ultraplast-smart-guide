@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { getFacets, searchProducts, type Facets, type ProductRow } from '../lib/catalogue'
 import { PAGE_SIZE, pageCount, parseParams, show } from '../lib/format'
 import { useCompare } from '../lib/compare'
+import ShareBar from '../components/ShareBar'
 
 export default function Catalogue() {
   const [sp, setSp] = useSearchParams()
@@ -41,6 +42,8 @@ export default function Catalogue() {
         <input id="cq" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Code, name or specification" className="flex-1 min-w-48 border border-steel-300 px-3 py-2 bg-white" />
         <button className="bg-belt-700 hover:bg-belt-600 text-white px-4">Search</button>
       </form>
+
+      {params.category && activeCat && <ShareBar kind="category" id={params.category} name={activeCat.name} />}
 
       <div className="grid gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
         <aside aria-label="Filters" className="space-y-4 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">

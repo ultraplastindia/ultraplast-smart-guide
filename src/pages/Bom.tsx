@@ -88,7 +88,7 @@ export default function BomPage() {
         </section>
 
         <div className="hidden print:block">
-          <p className="text-lg font-bold">Ultraplast Smart Conveyor Guide: Bill of Materials</p>
+          <p className="text-lg font-bold">Ultraplast Chainbelts Pvt. Ltd.: Bill of Materials</p>
           <p className="text-sm">Reference {bom.reference} | {bom.name} | Project: {na(bom.project)} | {new Date().toLocaleDateString()}</p>
         </div>
 
