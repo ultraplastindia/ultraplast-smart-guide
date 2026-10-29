@@ -54,6 +54,7 @@ export default function AdminDashboard() {
         <Link className="underline" to="/admin/products">Products</Link>
         <Link className="underline" to="/admin/categories">Categories</Link>
         <Link className="underline" to="/admin/images">Bulk images</Link>
+        {can('create_share_links') && <Link className="underline" to="/admin/share">Customer links</Link>}
         <Link className="underline" to="/admin/review">Review queue</Link>
         {can('upload_documents') && <Link className="underline" to="/documents">Documents</Link>}
       </p>

@@ -44,3 +44,6 @@ Sign in as admin, open **Admin**. **Categories**: add, rename, reorder, hide, li
 
 ## Several categories, sharing
 Run `supabase/migrations/0008_multiple_categories.sql` once. In Admin, Products, tick one or more categories and select several images at once. On a category or product, **Copy share link** gives a link that needs a sign-in, and **Download PDF** saves the category or product with its details. The header logo reads `public/logo.png` and links to https://www.ultraplastindia.com/.
+
+## Customer links (Phase 9)
+Run `supabase/migrations/0009_customer_share_links.sql` once. Admins can then click **Copy customer link** on a product or category: a public link (opens `/share/...`, no sign-in) that shows only that item, can expire and can be withdrawn under Admin, Customer links.

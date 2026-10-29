@@ -31,7 +31,7 @@ export default function ProductDetail() {
     setP(null); setPreview(null); setImages([]); setRelated([]); setErr('')
     ;(async () => {
       const { data, error } = await supabase.from('products')
-        .select('*,product_categories(name),product_category_links(product_categories(name)),catalogues(name,edition),product_specifications(spec_key,spec_value,unit,source_page),technical_documents(id,title,doc_type,storage_path)')
+        .select('*,product_categories!category_id(name),product_category_links(product_categories(name)),catalogues(name,edition),product_specifications(spec_key,spec_value,unit,source_page),technical_documents(id,title,doc_type,storage_path)')
         .eq('id', id ?? '').maybeSingle()
       if (!live) return
       if (error) return setErr(error.message)
@@ -103,7 +103,7 @@ export default function ProductDetail() {
             <strong>{STATUS[p.verification_status] ?? show(null)}</strong>
             {!verified && <p>Not checked against the original catalogue. Check page {show(p.source_page)} before relying on it.</p>}
           </div>
-          <div className="space-y-3 border border-steel-300 bg-white p-3"><h2 className="font-semibold">My selection</h2><AddToBom productId={p.id} /><CompareToggle id={p.id} /></div>
+          <div className="print:hidden space-y-3 border border-steel-300 bg-white p-3"><h2 className="font-semibold">My selection</h2><AddToBom productId={p.id} /><CompareToggle id={p.id} /></div>
           <section aria-labelledby="dc"><h2 id="dc" className="font-semibold mb-1">Documents</h2>
             {p.technical_documents.length === 0 ? <p className="text-sm text-steel-600">{show(null)}</p> : <ul className="text-sm space-y-1">{p.technical_documents.map((d) => <li key={d.id}>{d.title} ({d.doc_type}) <button className="underline ml-1" onClick={() => void openDocument('technical-documents', d.storage_path).catch((e: Error) => setErr(e.message))}>Download</button></li>)}</ul>}
           </section>

@@ -35,7 +35,7 @@ function List() {
   const [err, setErr] = useState('')
 
   const load = useCallback(async () => {
-    let query = supabase.from('products').select('id,product_code,name,status,verification_status,product_categories(name)', { count: 'exact' })
+    let query = supabase.from('products').select('id,product_code,name,status,verification_status,product_categories!category_id(name)', { count: 'exact' })
       .order('created_at', { ascending: false }).range(page * SIZE, page * SIZE + SIZE - 1)
     const term = q.trim().replace(/[%_\\,()*]/g, '')
     if (term) query = query.or(`product_code.ilike.*${term}*,name.ilike.*${term}*`)

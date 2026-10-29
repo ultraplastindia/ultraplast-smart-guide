@@ -18,6 +18,8 @@ import Compare from './pages/Compare'
 import AdminProducts from './pages/AdminProducts'
 import AdminCategories from './pages/AdminCategories'
 import AdminImages from './pages/AdminImages'
+import AdminShare from './pages/AdminShare'
+import SharePage from './pages/SharePage'
 import AdminDashboard from './pages/AdminDashboard'
 import { Dashboard, Help, Profile } from './pages/Account'
 
@@ -28,6 +30,7 @@ export default function App() {
       <Route path="/request-access" element={<Login />} />
       <Route path="/pending" element={<Pending />} />
       <Route path="/denied" element={<Denied />} />
+      <Route path="/share/:token" element={<SharePage />} />
       <Route element={<RequireApproved />}>
         <Route element={<Layout />}>
           <Route index element={<Home />} />
@@ -53,6 +56,9 @@ export default function App() {
             <Route path="admin/products/:id" element={<AdminProducts />} />
             <Route path="admin/categories" element={<AdminCategories />} />
             <Route path="admin/images" element={<AdminImages />} />
+          </Route>
+          <Route element={<RequirePermission permission="create_share_links" />}>
+            <Route path="admin/share" element={<AdminShare />} />
           </Route>
           <Route path="help" element={<Help />} />
         </Route>

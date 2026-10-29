@@ -15,7 +15,7 @@ export default function AdminReview() {
 
   const load = useCallback(async () => {
     const { data, error, count } = await supabase.from('products')
-      .select('id,product_code,name,source_page,product_categories(name)', { count: 'exact' })
+      .select('id,product_code,name,source_page,product_categories!category_id(name)', { count: 'exact' })
       .eq('status', 'draft').order('source_page', { ascending: true, nullsFirst: false }).range(page * SIZE, page * SIZE + SIZE - 1)
     if (error) return setMsg({ ok: false, text: error.message })
     setRows(data as unknown as Row[]); setTotal(count ?? 0); setPicked(new Set())

@@ -32,7 +32,7 @@ export default function BomPage() {
   const loadLines = useCallback(async (id: string) => {
     if (!id) return setLines([])
     const { data, error } = await supabase.from('bom_items')
-      .select('id,quantity,notes,product_code_snapshot,name_snapshot,products(material,pitch_mm,width_mm,source_page,verification_status,product_categories(name))')
+      .select('id,quantity,notes,product_code_snapshot,name_snapshot,products(material,pitch_mm,width_mm,source_page,verification_status,product_categories!category_id(name))')
       .eq('bom_id', id).order('product_code_snapshot')
     if (error) return setMsg({ ok: false, text: error.message })
     setLines((data as unknown as RawLine[]).map((r) => ({

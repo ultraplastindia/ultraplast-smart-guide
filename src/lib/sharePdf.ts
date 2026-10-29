@@ -2,6 +2,7 @@ import type { jsPDF } from 'jspdf'
 import { supabase } from './supabase'
 import { loadLogo } from './exportBom'
 import { fileStem, na } from './bom'
+import type { Shared, SharedProduct } from './share'
 
 const COMPANY = 'Ultraplast Chainbelts Pvt. Ltd.'
 const SITE = 'https://www.ultraplastindia.com/'
@@ -110,4 +111,59 @@ export async function exportProductPdf(productId: string) {
   }
   drawFooter(doc, r.verification_status !== 'verified')
   doc.save(`${fileStem('Ultraplast', r.product_code)}.pdf`)
+}
+
+async function urlToImage(url: string): Promise<{ data: string; format: string } | null> {
+  try {
+    const blob = await (await fetch(url)).blob()
+    const data = await new Promise<string>((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = () => no(new Error('read')); r.readAsDataURL(blob) })
+    return { data, format: blob.type === 'image/png' ? 'PNG' : blob.type === 'image/webp' ? 'WEBP' : 'JPEG' }
+  } catch { return null }
+}
+const sSpecs = (p: SharedProduct) => p.specs.map((s) => `${s.key}: ${s.value}${s.unit ? ` ${s.unit}` : ''}`).join('; ')
+const mm = (v: number | null) => (v === null ? na(null) : `${v} mm`)
+
+/** PDF for the public customer page. Uses only the customer-safe data returned by get_shared. */
+export async function exportSharedPdf(d: Shared, urls: Map<string, string>) {
+  const [{ jsPDF: JsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')])
+  if (d.kind === 'category') {
+    const doc = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+    const startY = await drawHeader(doc, d.name, `${d.products.length} products  |  ${new Date().toLocaleDateString()}`)
+    autoTable(doc, {
+      startY, theme: 'grid', styles: { fontSize: 7.5, cellPadding: 1.3 }, headStyles: { fillColor: [23, 32, 42] },
+      head: [['#', 'Product code', 'Name', 'Brand', 'Material', 'Pitch (mm)', 'Width (mm)', 'Thickness (mm)', 'Specifications']],
+      body: d.products.map((p, i) => [i + 1, p.product_code, p.name, na(p.brand), na(p.material), na(p.pitch_mm), na(p.width_mm), na(p.thickness_mm), sSpecs(p) || na(null)]),
+      columnStyles: { 8: { cellWidth: 80 } },
+    })
+    drawFooter(doc, d.products.some((p) => !p.verified))
+    doc.save(`${fileStem('Ultraplast', d.name)}.pdf`)
+    return
+  }
+  const p = d.product
+  const first = p.images[0] ? urls.get(p.images[0].path) : undefined
+  const img = first ? await urlToImage(first) : null
+  const doc = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  let y = await drawHeader(doc, p.name, `Product code: ${p.product_code}  |  ${new Date().toLocaleDateString()}`)
+  if (img) {
+    try {
+      const pr = doc.getImageProperties(img.data)
+      const scale = Math.min(80 / pr.width, 55 / pr.height)
+      doc.addImage(img.data, img.format, 14, y, pr.width * scale, pr.height * scale)
+      y += pr.height * scale + 4
+    } catch { /* unsupported image: continue without it */ }
+  }
+  autoTable(doc, {
+    startY: y, theme: 'grid', styles: { fontSize: 9, cellPadding: 1.8 }, columnStyles: { 0: { fontStyle: 'bold', cellWidth: 45, fillColor: [232, 236, 239] } },
+    body: [['Product code', p.product_code], ['Categories', na(p.categories.join(', '))], ['Brand', na(p.brand)], ['Material', na(p.material)],
+      ['Pitch', mm(p.pitch_mm)], ['Width', mm(p.width_mm)], ['Thickness', mm(p.thickness_mm)], ['Colour', na(p.colour)], ['Application', na(p.application)], ['Description', na(p.description)]],
+  })
+  if (p.specs.length) {
+    const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY
+    autoTable(doc, {
+      startY: finalY + 6, theme: 'grid', styles: { fontSize: 9, cellPadding: 1.8 }, headStyles: { fillColor: [23, 32, 42] },
+      head: [['Specification', 'Value']], body: p.specs.map((s) => [s.key, `${s.value}${s.unit ? ` ${s.unit}` : ''}`]),
+    })
+  }
+  drawFooter(doc, !p.verified)
+  doc.save(`${fileStem('Ultraplast', p.product_code)}.pdf`)
 }

@@ -46,7 +46,7 @@ export default function Catalogue() {
       {params.category && activeCat && <ShareBar kind="category" id={params.category} name={activeCat.name} />}
 
       <div className="grid gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
-        <aside aria-label="Filters" className="space-y-4 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
+        <aside aria-label="Filters" className="print:hidden space-y-4 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
           <details open className="border border-steel-300 bg-white">
             <summary className="px-3 py-2 font-semibold cursor-pointer">Categories</summary>
             <ul className="text-sm max-h-80 overflow-auto">

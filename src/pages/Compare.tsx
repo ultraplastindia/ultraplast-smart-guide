@@ -20,7 +20,7 @@ export default function Compare() {
     if (ids.length === 0) { setItems([]); return }
     let live = true
     supabase.from('products')
-      .select('id,product_code,name,brand,material,pitch_mm,width_mm,thickness_mm,colour,application,source_page,verification_status,product_categories(name),catalogues(name),product_specifications(spec_key,spec_value,unit)')
+      .select('id,product_code,name,brand,material,pitch_mm,width_mm,thickness_mm,colour,application,source_page,verification_status,product_categories!category_id(name),catalogues(name),product_specifications(spec_key,spec_value,unit)')
       .in('id', ids).then(({ data, error }) => {
         if (!live) return
         if (error) return setErr(error.message)
