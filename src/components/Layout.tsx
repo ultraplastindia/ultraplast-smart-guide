@@ -26,24 +26,35 @@ export default function Layout() {
   return (
     <div className="min-h-screen flex flex-col">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:p-2">Skip to content</a>
-      <header className="sticky top-0 z-40 bg-steel-950 print:hidden">
-        <div className="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between gap-4">
-          <a href="https://www.ultraplastindia.com/" target="_blank" rel="noopener noreferrer" aria-label="Ultraplast Chainbelts Pvt. Ltd. website" className="flex items-center gap-3 text-white font-bold tracking-tight text-lg sm:text-xl">
-            {logoOk && <img src={LOGO_DATA_URL} alt="" className="h-10 w-auto bg-white px-2 py-1 rounded-sm" onError={() => setLogoOk(false)} />}
-            <span>Ultraplast Chainbelts Pvt. Ltd.</span>
-          </a>
-          <button className="lg:hidden text-white p-2" aria-expanded={open} aria-label="Toggle menu" onClick={() => setOpen(!open)}>
-            {open ? <X /> : <Menu />}
-          </button>
-          <nav aria-label="Main" className={`${open ? 'block' : 'hidden'} lg:flex lg:items-center lg:gap-1 absolute lg:static left-0 right-0 top-full bg-steel-950 p-3 lg:p-0 z-40`}>
+      <header className="sticky top-0 z-40 bg-steel-950 shadow-md print:hidden">
+        <div className="mx-auto max-w-7xl px-4">
+          <div className="flex items-center justify-between gap-4 py-2.5">
+            <a href="https://www.ultraplastindia.com/" target="_blank" rel="noopener noreferrer" aria-label="Ultraplast Chainbelts Pvt. Ltd. website" className="flex items-center gap-3 min-w-0">
+              {logoOk && <img src={LOGO_DATA_URL} alt="" className="h-9 w-auto shrink-0 bg-white px-2.5 py-1.5 rounded-md" onError={() => setLogoOk(false)} />}
+              <span className="hidden sm:block h-8 w-px bg-white/25" aria-hidden="true" />
+              <span className="truncate text-white font-semibold tracking-tight text-base sm:text-lg leading-tight">Ultraplast Chainbelts Pvt. Ltd.</span>
+            </a>
+            <div className="hidden lg:flex items-center gap-2 shrink-0">
+              <NavLink to="/profile" className={link}>Profile</NavLink>
+              <button onClick={() => void signOut()} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-steel-100 border border-white/25 rounded-sm hover:bg-white/10" title={session?.user.email ?? ''}>
+                <LogOut size={16} aria-hidden /> Sign out
+              </button>
+            </div>
+            <button className="lg:hidden text-white p-2" aria-expanded={open} aria-label="Toggle menu" onClick={() => setOpen(!open)}>
+              {open ? <X /> : <Menu />}
+            </button>
+          </div>
+          <nav aria-label="Main" className={`${open ? 'block' : 'hidden'} lg:flex lg:flex-wrap lg:items-center lg:gap-1 border-t border-white/10 py-2 max-h-[70vh] overflow-y-auto lg:overflow-visible`}>
             {NAV.map(([to, label]) => (
               <NavLink key={to} to={to} end={to === '/'} className={link} onClick={() => setOpen(false)}>{label}</NavLink>
             ))}
             {can('manage_catalogue') && <NavLink to="/admin" end className={link} onClick={() => setOpen(false)}>Admin</NavLink>}
-            <NavLink to="/profile" className={link} onClick={() => setOpen(false)}>Profile</NavLink>
-            <button onClick={() => void signOut()} className="flex items-center gap-1 px-3 py-2 text-sm text-steel-300 hover:text-white" title={session?.user.email ?? ''}>
-              <LogOut size={16} aria-hidden /> Sign out
-            </button>
+            <div className="lg:hidden mt-1 pt-1 border-t border-white/10">
+              <NavLink to="/profile" className={link} onClick={() => setOpen(false)}>Profile</NavLink>
+              <button onClick={() => void signOut()} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-steel-100 hover:text-white" title={session?.user.email ?? ''}>
+                <LogOut size={16} aria-hidden /> Sign out
+              </button>
+            </div>
           </nav>
         </div>
       </header>
