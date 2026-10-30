@@ -28,6 +28,14 @@ export default function Documents() {
     try { await openDocument('technical-documents', d.storage_path) } catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
   }
 
+  const remove = async (d: Doc) => {
+    if (!window.confirm(`Delete "${d.title}" permanently?`)) return
+    const r = await supabase.from('technical_documents').delete().eq('id', d.id)
+    if (r.error) return setMsg({ ok: false, text: r.error.message })
+    await supabase.storage.from('technical-documents').remove([d.storage_path])
+    setMsg({ ok: true, text: 'Document deleted.' }); await load()
+  }
+
   const upload = async (e: FormEvent) => {
     e.preventDefault(); setMsg(null)
     if (!file || !title.trim()) return setMsg({ ok: false, text: 'Choose a file and enter a title.' })
@@ -65,7 +73,7 @@ export default function Documents() {
           {docs.map((d) => (
             <li key={d.id} className="flex items-center justify-between px-4 py-3">
               <span>{d.title} <span className="text-sm text-steel-600">({d.doc_type})</span></span>
-              <button onClick={() => void download(d)} className="border border-steel-300 px-3 py-1 hover:bg-steel-100">Download</button>
+              <span className="space-x-2 whitespace-nowrap"><button onClick={() => void download(d)} className="border border-steel-300 px-3 py-1 hover:bg-steel-100">Download</button>{can('upload_documents') && <button onClick={() => void remove(d)} className="border border-steel-300 px-3 py-1 text-red-700 hover:bg-steel-100">Delete</button>}</span>
             </li>))}
         </ul>)}
       {can('upload_documents') && (

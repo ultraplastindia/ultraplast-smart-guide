@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { Menu, X, LogOut } from 'lucide-react'
 import { useAuth } from '../lib/auth'
+import { LOGO_DATA_URL } from '../lib/logo'
+import PrintHeader from './PrintHeader'
 
 const NAV = [
   ['/', 'Home'],
@@ -26,8 +28,8 @@ export default function Layout() {
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:p-2">Skip to content</a>
       <header className="sticky top-0 z-40 bg-steel-950 print:hidden">
         <div className="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between gap-4">
-          <a href="https://www.ultraplastindia.com/" target="_blank" rel="noopener noreferrer" aria-label="Ultraplast Chainbelts Pvt. Ltd. website" className="flex items-center gap-3 text-white font-bold tracking-tight text-lg">
-            {logoOk && <img src="/logo.png" alt="" className="h-8 w-auto bg-white px-2 py-1 rounded-sm" onError={() => setLogoOk(false)} />}
+          <a href="https://www.ultraplastindia.com/" target="_blank" rel="noopener noreferrer" aria-label="Ultraplast Chainbelts Pvt. Ltd. website" className="flex items-center gap-3 text-white font-bold tracking-tight text-lg sm:text-xl">
+            {logoOk && <img src={LOGO_DATA_URL} alt="" className="h-10 w-auto bg-white px-2 py-1 rounded-sm" onError={() => setLogoOk(false)} />}
             <span>Ultraplast Chainbelts Pvt. Ltd.</span>
           </a>
           <button className="lg:hidden text-white p-2" aria-expanded={open} aria-label="Toggle menu" onClick={() => setOpen(!open)}>
@@ -45,7 +47,7 @@ export default function Layout() {
           </nav>
         </div>
       </header>
-      <main id="main" className="flex-1 mx-auto w-full max-w-7xl px-4 py-8"><Outlet /></main>
+      <main id="main" className="flex-1 mx-auto w-full max-w-7xl px-4 py-8"><PrintHeader /><Outlet /></main>
       <footer className="print:hidden border-t border-steel-300 py-4 text-center text-xs text-steel-600">
         Ultraplast Chainbelts Pvt. Ltd. — internal engineering guide. Data shown as “Not available” when unverified.
       </footer>

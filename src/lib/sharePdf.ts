@@ -5,7 +5,6 @@ import { fileStem, na } from './bom'
 import type { Shared, SharedProduct } from './share'
 
 const COMPANY = 'Ultraplast Chainbelts Pvt. Ltd.'
-const SITE = 'https://www.ultraplastindia.com/'
 const COLS = 'id,product_code,name,brand,material,pitch_mm,width_mm,thickness_mm,colour,application,description,source_page,verification_status,product_specifications(spec_key,spec_value,unit)'
 
 interface Row {
@@ -16,19 +15,64 @@ interface Row {
 const specText = (r: Row) => r.product_specifications.map((s) => `${s.spec_key}: ${s.spec_value}${s.unit ? ` ${s.unit}` : ''}`).join('; ')
 const status = (r: Row) => (r.verification_status === 'verified' ? 'Verified' : 'Not verified')
 
+type Mode = 'download' | 'print'
+
+/** Saves the PDF, or opens it in a tab ready to print. */
+function deliver(doc: jsPDF, filename: string, mode: Mode, win?: Window | null) {
+  if (mode === 'print') {
+    ;(doc as unknown as { autoPrint: () => void }).autoPrint()
+    const url = String(doc.output('bloburl'))
+    if (win && !win.closed) win.location.href = url
+    else window.open(url, '_blank')
+  } else doc.save(filename)
+}
+
+let logoPromise: Promise<string | null> | null = null
+const getLogo = () => (logoPromise ??= loadLogo())
+
 async function drawHeader(doc: jsPDF, title: string, subtitle: string): Promise<number> {
-  const logo = await loadLogo()
-  let x = 14
+  const logo = await getLogo()
+  const w = doc.internal.pageSize.getWidth()
   if (logo) {
     const p = doc.getImageProperties(logo)
-    doc.addImage(logo, 'PNG', 14, 8, (12 * p.width) / p.height, 12)
-    x = 14 + (12 * p.width) / p.height + 6
+    doc.addImage(logo, 'PNG', 14, 8, (14 * p.width) / p.height, 14)
   }
-  doc.setFontSize(15).text(COMPANY, x, 14)
-  doc.setFontSize(9).textWithLink(SITE, x, 19, { url: SITE })
-  doc.setFontSize(13).text(title, 14, 30)
-  doc.setFontSize(9).text(subtitle, 14, 36)
-  return 40
+  doc.setFont('helvetica', 'bold').setFontSize(16).setTextColor(0, 48, 128).text(COMPANY, w - 14, 18, { align: 'right' })
+  doc.setDrawColor(0, 128, 64).setLineWidth(0.8).line(14, 25, w - 14, 25)
+  doc.setFontSize(14).setTextColor(23, 32, 42).text(title, 14, 34)
+  doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(90, 100, 110).text(subtitle, 14, 40)
+  doc.setTextColor(0, 0, 0)
+  return 44
+}
+
+/** Faint company logo and name behind the content of every page. */
+async function addWatermark(doc: jsPDF) {
+  const logo = await getLogo()
+  const w = doc.internal.pageSize.getWidth(), h = doc.internal.pageSize.getHeight()
+  const G = (doc as unknown as { GState: new (o: { opacity: number }) => unknown }).GState
+  const setOpacity = (o: number) => (doc as unknown as { setGState: (g: unknown) => void }).setGState(new G({ opacity: o }))
+  for (let i = 1; i <= doc.getNumberOfPages(); i++) {
+    doc.setPage(i)
+    setOpacity(0.09)
+    let y = h / 2
+    if (logo) {
+      try {
+        const p = doc.getImageProperties(logo)
+        const iw = Math.min(w * 0.6, 130), ih = (iw * p.height) / p.width
+        doc.addImage(logo, 'PNG', (w - iw) / 2, h / 2 - ih, iw, ih)
+        y = h / 2 + 12
+      } catch { /* continue with text only */ }
+    }
+    doc.setFontSize(22).setFont('helvetica', 'bold').setTextColor(0, 48, 128)
+    doc.text(COMPANY.toUpperCase(), w / 2, y, { align: 'center' })
+    setOpacity(1)
+    doc.setFont('helvetica', 'normal').setTextColor(0, 0, 0)
+  }
+}
+
+async function finish(doc: jsPDF, unverified: boolean) {
+  await addWatermark(doc)
+  drawFooter(doc, unverified)
 }
 
 function drawFooter(doc: jsPDF, unverified: boolean) {
@@ -41,7 +85,7 @@ function drawFooter(doc: jsPDF, unverified: boolean) {
   }
 }
 
-export async function exportCategoryPdf(categoryId: string, categoryName: string) {
+export async function exportCategoryPdf(categoryId: string, categoryName: string, mode: Mode = 'download', win?: Window | null) {
   const rows: Row[] = []
   for (let from = 0; ; from += 500) {
     const { data, error } = await supabase.from('product_category_links').select(`products(${COLS})`).eq('category_id', categoryId).range(from, from + 499)
@@ -61,8 +105,8 @@ export async function exportCategoryPdf(categoryId: string, categoryName: string
     body: rows.map((r, i) => [i + 1, r.product_code, r.name, na(r.brand), na(r.material), na(r.pitch_mm), na(r.width_mm), na(r.thickness_mm), na(r.source_page), status(r), specText(r) || na(null)]),
     columnStyles: { 10: { cellWidth: 70 } },
   })
-  drawFooter(doc, rows.some((r) => r.verification_status !== 'verified'))
-  doc.save(`${fileStem('Ultraplast', categoryName)}.pdf`)
+  await finish(doc, rows.some((r) => r.verification_status !== 'verified'))
+  deliver(doc, `${fileStem('Ultraplast', categoryName)}.pdf`, mode, win)
 }
 
 async function firstImage(productId: string): Promise<{ data: string; format: string } | null> {
@@ -77,7 +121,7 @@ async function firstImage(productId: string): Promise<{ data: string; format: st
   } catch { return null }
 }
 
-export async function exportProductPdf(productId: string) {
+export async function exportProductPdf(productId: string, mode: Mode = 'download', win?: Window | null) {
   const { data, error } = await supabase.from('products')
     .select(`${COLS},product_category_links(product_categories(name)),catalogues(name,edition)`).eq('id', productId).maybeSingle()
   if (error || !data) throw new Error(error?.message ?? 'Product not found.')
@@ -109,8 +153,8 @@ export async function exportProductPdf(productId: string) {
       head: [['Specification', 'Value']], body: r.product_specifications.map((s) => [s.spec_key, `${s.spec_value}${s.unit ? ` ${s.unit}` : ''}`]),
     })
   }
-  drawFooter(doc, r.verification_status !== 'verified')
-  doc.save(`${fileStem('Ultraplast', r.product_code)}.pdf`)
+  await finish(doc, r.verification_status !== 'verified')
+  deliver(doc, `${fileStem('Ultraplast', r.product_code)}.pdf`, mode, win)
 }
 
 async function urlToImage(url: string): Promise<{ data: string; format: string } | null> {
@@ -124,7 +168,7 @@ const sSpecs = (p: SharedProduct) => p.specs.map((s) => `${s.key}: ${s.value}${s
 const mm = (v: number | null) => (v === null ? na(null) : `${v} mm`)
 
 /** PDF for the public customer page. Uses only the customer-safe data returned by get_shared. */
-export async function exportSharedPdf(d: Shared, urls: Map<string, string>) {
+export async function exportSharedPdf(d: Shared, urls: Map<string, string>, mode: Mode = 'download', win?: Window | null) {
   const [{ jsPDF: JsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')])
   if (d.kind === 'category') {
     const doc = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
@@ -135,8 +179,8 @@ export async function exportSharedPdf(d: Shared, urls: Map<string, string>) {
       body: d.products.map((p, i) => [i + 1, p.product_code, p.name, na(p.brand), na(p.material), na(p.pitch_mm), na(p.width_mm), na(p.thickness_mm), sSpecs(p) || na(null)]),
       columnStyles: { 8: { cellWidth: 80 } },
     })
-    drawFooter(doc, d.products.some((p) => !p.verified))
-    doc.save(`${fileStem('Ultraplast', d.name)}.pdf`)
+    await finish(doc, d.products.some((p) => !p.verified))
+    deliver(doc, `${fileStem('Ultraplast', d.name)}.pdf`, mode, win)
     return
   }
   const p = d.product
@@ -164,6 +208,6 @@ export async function exportSharedPdf(d: Shared, urls: Map<string, string>) {
       head: [['Specification', 'Value']], body: p.specs.map((s) => [s.key, `${s.value}${s.unit ? ` ${s.unit}` : ''}`]),
     })
   }
-  drawFooter(doc, !p.verified)
-  doc.save(`${fileStem('Ultraplast', p.product_code)}.pdf`)
+  await finish(doc, !p.verified)
+  deliver(doc, `${fileStem('Ultraplast', p.product_code)}.pdf`, mode, win)
 }

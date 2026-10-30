@@ -42,22 +42,39 @@ export default function AdminDashboard() {
     return () => { live = false }
   }, [can])
 
+  const TILES: { group: string; items: { to: string; title: string; text: string; perm: string }[] }[] = [
+    { group: 'Catalogue', items: [
+      { to: '/admin/products', title: 'Products', text: 'Add or edit products: details, several categories, specifications and images.', perm: 'manage_catalogue' },
+      { to: '/admin/categories', title: 'Categories', text: 'Add, rename, reorder and hide categories.', perm: 'manage_catalogue' },
+      { to: '/admin/images', title: 'Bulk product images', text: 'Upload many product images at once, matched by product code.', perm: 'manage_catalogue' },
+      { to: '/admin/import', title: 'Import products', text: 'Upload an Excel or CSV file with many products.', perm: 'manage_imports' },
+      { to: '/admin/review', title: 'Review queue', text: 'Publish, verify or archive imported products.', perm: 'manage_catalogue' }] },
+    { group: 'Files', items: [
+      { to: '/documents', title: 'Documents', text: 'CAD files, datasheets and drawings.', perm: 'upload_documents' },
+      { to: '/admin/page-images', title: 'Catalogue page images', text: 'Upload page pictures (page-0001.jpg and so on) shown on product pages.', perm: 'manage_imports' },
+      { to: '/admin/files', title: 'Catalogue PDF files', text: 'Store the full catalogue PDFs privately.', perm: 'manage_imports' }] },
+    { group: 'Sharing', items: [{ to: '/admin/share', title: 'Customer links', text: 'See, copy and withdraw links shared with customers.', perm: 'create_share_links' }] },
+    { group: 'People', items: [{ to: '/admin/access', title: 'User access', text: 'Approve people, set roles, suspend accounts.', perm: 'manage_users' }] },
+  ]
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Admin dashboard</h1>
-      <ul className="grid gap-px bg-steel-300 border border-steel-300 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="space-y-8">
+      <h1 className="text-2xl font-bold">Admin panel</h1>
+      <ul className="grid gap-px bg-steel-300 border border-steel-300 rounded-md overflow-hidden sm:grid-cols-2 lg:grid-cols-4">
         {stats.map(([l, n]) => <li key={l} className="bg-white px-4 py-3"><p className="text-sm text-steel-600">{l}</p><p className="text-2xl font-bold">{n ?? 'Not available'}</p></li>)}
       </ul>
-      <p className="text-sm space-x-4">
-        {can('manage_users') && <Link className="underline" to="/admin/access">User access</Link>}
-        {can('manage_imports') && <Link className="underline" to="/admin/import">Import</Link>}
-        <Link className="underline" to="/admin/products">Products</Link>
-        <Link className="underline" to="/admin/categories">Categories</Link>
-        <Link className="underline" to="/admin/images">Bulk images</Link>
-        {can('create_share_links') && <Link className="underline" to="/admin/share">Customer links</Link>}
-        <Link className="underline" to="/admin/review">Review queue</Link>
-        {can('upload_documents') && <Link className="underline" to="/documents">Documents</Link>}
-      </p>
+      {TILES.map((g) => {
+        const items = g.items.filter((t) => can(t.perm))
+        if (items.length === 0) return null
+        return (
+          <section key={g.group} aria-label={g.group}>
+            <h2 className="font-semibold mb-2">{g.group}</h2>
+            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {items.map((t) => (
+                <li key={t.to}><Link to={t.to} className="block h-full bg-white border border-steel-300 border-l-4 border-l-brand-navy rounded-md p-4 shadow-sm hover:shadow-md transition">
+                  <span className="font-semibold">{t.title}</span><span className="block text-sm text-steel-600 mt-1">{t.text}</span></Link></li>))}
+            </ul>
+          </section>)
+      })}
       {can('manage_imports') && (
         <section aria-labelledby="ij"><h2 id="ij" className="font-semibold mb-1">Latest catalogue import</h2>
           {job ? <p className="text-sm">{job.filename}: {job.status}, {job.imported} imported, {job.skipped} skipped, {job.failed} failed ({new Date(job.created_at).toLocaleString()})</p> : <p className="text-sm text-steel-600">No imports yet.</p>}

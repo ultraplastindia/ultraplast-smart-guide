@@ -30,10 +30,12 @@ export default function ShareBar({ kind, id, name }: Props) {
       await send(url, `Customer link copied${days ? ` (valid ${days} days)` : ' (no expiry)'}. Anyone with it can view this ${kind} without signing in.`)
     } catch (e) { setMsg({ ok: false, text: (e as Error).message }) } finally { setBusy(false) }
   }
-  const pdf = async () => {
+  const make = async (mode: 'download' | 'print') => {
+    const win = mode === 'print' ? window.open('', '_blank') : null
+    win?.document.write('<p style="font-family:sans-serif;padding:24px">Preparing your document…</p>')
     setBusy(true); setMsg(null)
-    try { await (kind === 'category' ? exportCategoryPdf(id, name) : exportProductPdf(id)) }
-    catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
+    try { await (kind === 'category' ? exportCategoryPdf(id, name, mode, win) : exportProductPdf(id, mode, win)) }
+    catch (e) { win?.close(); setMsg({ ok: false, text: (e as Error).message }) }
     finally { setBusy(false) }
   }
   const b = 'border border-steel-300 bg-white px-3 py-1 hover:bg-steel-100 disabled:opacity-60'
@@ -45,8 +47,8 @@ export default function ShareBar({ kind, id, name }: Props) {
         <button className={`${b} font-medium`} disabled={busy} onClick={() => void customer()}>Copy customer link</button>
       </>)}
       <button className={b} onClick={() => void send(internal, 'Internal link copied. It needs a sign-in to open.')}>Copy internal link</button>
-      {can('download_documents') && <button className={b} disabled={busy} onClick={() => void pdf()}>{busy ? 'Preparing…' : 'Download PDF'}</button>}
-      <button className={b} onClick={() => window.print()}>Print</button>
+      {can('download_documents') && <button className={b} disabled={busy} onClick={() => void make('download')}>{busy ? 'Preparing…' : 'Download PDF'}</button>}
+      <button className={b} disabled={busy} onClick={() => (can('download_documents') ? void make('print') : window.print())}>Print</button>
       {msg && <span role="status" className={msg.ok ? 'text-green-800' : 'text-red-700'}>{msg.text}</span>}
     </div>
   )

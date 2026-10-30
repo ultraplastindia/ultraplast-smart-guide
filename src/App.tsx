@@ -20,6 +20,8 @@ import AdminCategories from './pages/AdminCategories'
 import AdminImages from './pages/AdminImages'
 import AdminShare from './pages/AdminShare'
 import SharePage from './pages/SharePage'
+import AdminPageImages from './pages/AdminPageImages'
+import AdminFiles from './pages/AdminFiles'
 import AdminDashboard from './pages/AdminDashboard'
 import { Dashboard, Help, Profile } from './pages/Account'
 
@@ -47,6 +49,8 @@ export default function App() {
             <Route path="admin/access" element={<AdminAccess />} />
           </Route>
           <Route element={<RequirePermission permission="manage_imports" />}>
+            <Route path="admin/page-images" element={<AdminPageImages />} />
+            <Route path="admin/files" element={<AdminFiles />} />
             <Route path="admin/import" element={<AdminImport />} />
           </Route>
           <Route element={<RequirePermission permission="manage_catalogue" />}>

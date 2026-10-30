@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { show } from '../lib/format'
+import { deleteProducts } from '../lib/deleteProducts'
 
 interface Row { id: string; product_code: string; name: string; source_page: number | null; product_categories: { name: string } | null }
 const SIZE = 100
@@ -28,6 +29,11 @@ export default function AdminReview() {
     setMsg(error ? { ok: false, text: error.message } : { ok: true, text: `${ids.length} product(s): ${done}` })
     if (!error) await load()
   }
+  const removeSelected = async (ids: string[]) => {
+    if (ids.length === 0) return setMsg({ ok: false, text: 'Select at least one product.' })
+    if (!window.confirm(`Delete ${ids.length} product(s) permanently? Their specifications, images and documents are deleted too.`)) return
+    try { await deleteProducts(ids); setMsg({ ok: true, text: `${ids.length} product(s) deleted.` }); await load() } catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
+  }
   const toggle = (id: string) => setPicked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const ids = [...picked]
   const btn = 'border border-steel-300 bg-white px-3 py-1 hover:bg-steel-100'
@@ -47,6 +53,7 @@ export default function AdminReview() {
           <button className={btn} onClick={() => void apply(ids, { status: 'active' }, 'published (Not verified).')}>Publish (keep Not verified)</button>
           <button className={btn} onClick={() => void apply(ids, { status: 'active', verification_status: 'verified' }, 'verified and published.')}>Verify and publish</button>
           <button className={btn} onClick={() => void apply(ids, { status: 'archived' }, 'archived.')}>Archive</button>
+          <button className={`${btn} text-red-700`} onClick={() => void removeSelected(ids)}>Delete selected</button>
         </div>
         <div className="overflow-x-auto border border-steel-300 bg-white"><table className="w-full text-sm">
           <thead className="bg-steel-100 text-left"><tr><th className="px-3 py-2"><span className="sr-only">Select</span></th>{['Code', 'Name', 'Category', 'Source page'].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}</tr></thead>

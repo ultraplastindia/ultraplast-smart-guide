@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { show } from '../lib/format'
+import { deleteProducts } from '../lib/deleteProducts'
 
 const SIZE = 50
 const EMPTY = { product_code: '', name: '', brand: '', description: '', material: '', pitch_mm: '', width_mm: '', thickness_mm: '',
@@ -33,6 +34,12 @@ function List() {
   const [status, setStatus] = useState('')
   const [page, setPage] = useState(0)
   const [err, setErr] = useState('')
+  const [note, setNote] = useState('')
+
+  const del = async (id: string, code: string) => {
+    if (!window.confirm(`Delete ${code} permanently? Its specifications, images and documents are deleted too. BOM lines that use it keep its code and name.`)) return
+    try { await deleteProducts([id]); setNote(`Deleted ${code}.`); setErr(''); await load() } catch (e) { setErr((e as Error).message) }
+  }
 
   const load = useCallback(async () => {
     let query = supabase.from('products').select('id,product_code,name,status,verification_status,product_categories!category_id(name)', { count: 'exact' })
@@ -56,6 +63,7 @@ function List() {
         <select id="ps" className={f} value={status} onChange={(e) => { setStatus(e.target.value); setPage(0) }}><option value="">All statuses</option><option value="draft">Draft</option><option value="active">Published</option><option value="archived">Archived</option></select>
       </div>
       {err && <p role="alert" className="text-red-700 text-sm">{err}</p>}
+      {note && <p role="status" className="text-green-800 text-sm">{note}</p>}
       {rows === null && !err && <p role="status" className="text-steel-600">Loading…</p>}
       {rows?.length === 0 && <p className="text-steel-600">No products match.</p>}
       {rows && rows.length > 0 && (<>
@@ -67,7 +75,7 @@ function List() {
               <td className="px-3 py-2 font-mono">{r.product_code}</td><td className="px-3 py-2">{r.name}</td><td className="px-3 py-2">{show(r.product_categories?.name)}</td>
               <td className="px-3 py-2">{r.status === 'active' ? 'Published' : r.status === 'draft' ? 'Draft' : 'Archived'}</td>
               <td className="px-3 py-2">{r.verification_status === 'verified' ? 'Verified' : 'Not verified'}</td>
-              <td className="px-3 py-2"><Link className="underline" to={`/admin/products/${r.id}`}>Edit</Link></td></tr>))}</tbody></table></div>
+              <td className="px-3 py-2 space-x-3 whitespace-nowrap"><Link className="underline" to={`/admin/products/${r.id}`}>Edit</Link><button className="underline text-red-700" onClick={() => void del(r.id, r.product_code)}>Delete</button></td></tr>))}</tbody></table></div>
         <div className="flex gap-3 text-sm">
           <button disabled={page === 0} onClick={() => setPage(page - 1)} className="border border-steel-300 px-3 py-1 disabled:opacity-40">Previous</button>
           <button disabled={(page + 1) * SIZE >= total} onClick={() => setPage(page + 1)} className="border border-steel-300 px-3 py-1 disabled:opacity-40">Next</button></div></>)}
@@ -186,6 +194,10 @@ function Editor({ id }: { id: string }) {
     setMsg(bad.length ? { ok: false, text: `Some images failed: ${bad.join('; ')}` } : { ok: true, text: `${files.length} image(s) uploaded.` })
     await load()
   }
+  const removeProduct = async () => {
+    if (!window.confirm(`Delete ${f.product_code} permanently? Its specifications, images and documents are deleted too. BOM lines that use it keep its code and name.`)) return
+    try { await deleteProducts([id]); nav('/admin/products', { replace: true }) } catch (e) { fail((e as Error).message) }
+  }
   const removeImage = async (img: Img) => {
     if (!window.confirm('Delete this image?')) return
     const r = await supabase.from('product_images').delete().eq('id', img.id)
@@ -240,7 +252,7 @@ function Editor({ id }: { id: string }) {
         <button className="border border-steel-300 bg-white px-3 py-1 text-sm" onClick={() => setSpecs([...specs, { key: '', value: '', unit: '' }])}>Add specification</button>
       </section>
 
-      <div><button disabled={busy} onClick={() => void save()} className="bg-belt-700 text-white px-5 py-2 disabled:opacity-60">{busy ? 'Saving…' : 'Save product'}</button></div>
+      <div><button disabled={busy} onClick={() => void save()} className="bg-belt-700 text-white px-5 py-2 disabled:opacity-60">{busy ? 'Saving…' : 'Save product'}</button>{!isNew && <button onClick={() => void removeProduct()} className="ml-5 text-red-700 underline">Delete product</button>}</div>
 
       <section aria-labelledby="im" className="space-y-2">
         <h2 id="im" className="font-semibold">Images</h2>
@@ -252,7 +264,7 @@ function Editor({ id }: { id: string }) {
         {!isNew && (images.length === 0 ? <p className="text-sm text-steel-600">No images yet.</p> : (
           <ul className="flex flex-wrap gap-3">{images.map((im) => (
             <li key={im.id} className="border border-steel-300 bg-white p-2 text-sm">
-              {im.url ? <img src={im.url} alt={im.caption ?? 'Product'} className="h-32" /> : <p className="h-32 grid place-items-center">Not available</p>}
+              <div className="w-40 h-32 bg-white border border-steel-300 flex items-center justify-center overflow-hidden">{im.url ? <img src={im.url} alt={im.caption ?? 'Product'} className="max-h-full max-w-full object-contain" /> : <span>Not available</span>}</div>
               <p className="mt-1">{im.caption ?? ''}</p><button className="underline text-red-700" onClick={() => void removeImage(im)}>Delete</button></li>))}</ul>))}
       </section>
     </div>

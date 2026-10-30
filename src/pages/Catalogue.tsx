@@ -4,6 +4,8 @@ import { getFacets, searchProducts, type Facets, type ProductRow } from '../lib/
 import { PAGE_SIZE, pageCount, parseParams, show } from '../lib/format'
 import { useCompare } from '../lib/compare'
 import ShareBar from '../components/ShareBar'
+import { Frame } from '../components/ImageViewer'
+import { supabase } from '../lib/supabase'
 
 export default function Catalogue() {
   const [sp, setSp] = useSearchParams()
@@ -14,6 +16,7 @@ export default function Catalogue() {
   const [err, setErr] = useState('')
   const [q, setQ] = useState(params.q)
   const key = sp.toString()
+  const [thumbs, setThumbs] = useState<Map<string, string>>(new Map())
 
   useEffect(() => { getFacets().then(setFacets).catch(() => setFacets(null)) }, [])
   useEffect(() => {
@@ -22,6 +25,25 @@ export default function Catalogue() {
     searchProducts(parseParams(new URLSearchParams(key))).then((d) => live && setData(d)).catch((e: Error) => live && setErr(e.message))
     return () => { live = false }
   }, [key])
+
+  useEffect(() => {
+    if (!data || data.items.length === 0) { setThumbs(new Map()); return }
+    let live = true
+    ;(async () => {
+      const ids = data.items.map((i) => i.id)
+      const im = await supabase.from('product_images').select('product_id,storage_path,sort_order').in('product_id', ids).order('sort_order')
+      const first = new Map<string, string>()
+      for (const r of (im.data ?? []) as { product_id: string; storage_path: string }[]) if (!first.has(r.product_id)) first.set(r.product_id, r.storage_path)
+      if (first.size === 0) return live ? setThumbs(new Map()) : undefined
+      const signed = await supabase.storage.from('product-images').createSignedUrls([...first.values()], 3600)
+      const byPath = new Map<string, string>()
+      for (const u of signed.data ?? []) if (u.signedUrl && u.path) byPath.set(u.path, u.signedUrl)
+      const out = new Map<string, string>()
+      for (const [pid, path] of first) { const u = byPath.get(path); if (u) out.set(pid, u) }
+      if (live) setThumbs(out)
+    })()
+    return () => { live = false }
+  }, [data])
 
   const update = (changes: Record<string, string>) => {
     const next = new URLSearchParams(sp)
@@ -70,15 +92,17 @@ export default function Catalogue() {
           {data && data.total === 0 && <p className="text-steel-600">No products found. Try a shorter code or clear the filters. If the catalogue is still empty, an administrator needs to import and publish products.</p>}
           {data && data.total > 0 && (<>
             <p className="text-sm text-steel-600" aria-live="polite">{data.total} product{data.total === 1 ? '' : 's'}{activeCat ? ` in ${activeCat.name}` : ''}</p>
-            <ul className="border border-steel-300 bg-white divide-y divide-steel-300">
+            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {data.items.map((p) => (
-                <li key={p.id} className="flex items-center gap-3 px-3 py-2 hover:bg-belt-100">
-                  <Link to={`/products/${p.id}`} className="flex-1 min-w-0">
-                    <span className="block font-medium truncate">{p.name}</span>
-                    <span className="block text-sm text-steel-600 truncate"><span className="font-mono">{p.product_code}</span> · {show(p.category_name)} · catalogue page {show(p.source_page)}</span>
+                <li key={p.id} className="flex flex-col bg-white border border-steel-300 rounded-md shadow-sm hover:shadow-md transition overflow-hidden">
+                  <Link to={`/products/${p.id}`} className="block p-3 space-y-2 flex-1">
+                    <Frame src={thumbs.get(p.id)} alt={p.name} />
+                    <span className="block font-semibold leading-snug">{p.name}</span>
+                    <span className="block text-sm font-mono text-steel-600">{p.product_code}</span>
+                    <span className="block text-xs text-steel-600">{show(p.category_name)}</span>
+                    {p.verification_status !== 'verified' && <span className="inline-block text-xs text-amber-900 bg-amber-100 px-1">Not yet verified</span>}
                   </Link>
-                  {p.verification_status !== 'verified' && <span className="hidden sm:inline text-xs text-amber-900 bg-amber-100 px-1 whitespace-nowrap">Not yet verified</span>}
-                  <label className="flex items-center gap-1 text-sm whitespace-nowrap"><input type="checkbox" checked={cmp.ids.includes(p.id)} disabled={!cmp.ids.includes(p.id) && cmp.ids.length >= 4} onChange={() => cmp.toggle(p.id)} /> Compare</label>
+                  <label className="flex items-center gap-2 px-3 py-2 border-t border-steel-300 text-sm"><input type="checkbox" checked={cmp.ids.includes(p.id)} disabled={!cmp.ids.includes(p.id) && cmp.ids.length >= 4} onChange={() => cmp.toggle(p.id)} /> Compare</label>
                 </li>))}
             </ul>
             <nav aria-label="Pagination" className="flex items-center gap-3 text-sm">

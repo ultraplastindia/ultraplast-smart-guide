@@ -47,3 +47,9 @@ Run `supabase/migrations/0008_multiple_categories.sql` once. In Admin, Products,
 
 ## Customer links (Phase 9)
 Run `supabase/migrations/0009_customer_share_links.sql` once. Admins can then click **Copy customer link** on a product or category: a public link (opens `/share/...`, no sign-in) that shows only that item, can expire and can be withdrawn under Admin, Customer links.
+
+## Branding, viewer, admin panel
+The logo is `public/logo.png` (header, PDFs). Downloaded PDFs carry the logo and company name in the heading and a faint watermark on every page. Images sit in fixed frames and open in a zoom viewer. Admin has an overview of every tool, including Catalogue page images and Catalogue PDF files.
+
+## Logo, print, delete
+The logo is embedded in `src/lib/logo.ts` (header, print, PDFs), so it always shows. Print opens a PDF with the company letterhead and watermark. Delete buttons: products (list, edit page, review queue), categories, documents.

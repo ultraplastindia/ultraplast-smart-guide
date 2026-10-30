@@ -5,6 +5,7 @@ import { show } from '../lib/format'
 import { openDocument, pagePreviewUrl } from '../lib/catalogue'
 import AddToBom, { CompareToggle } from '../components/AddToBom'
 import ShareBar from '../components/ShareBar'
+import { Gallery } from '../components/ImageViewer'
 
 interface Detail {
   id: string; product_code: string; name: string; category_id: string | null; brand: string | null; description: string | null; material: string | null
@@ -66,6 +67,7 @@ export default function ProductDetail() {
     ['Catalogue page', show(p.source_page)], ['Drawing reference', show(p.drawing_ref)],
   ]
   const verified = p.verification_status === 'verified'
+  const galleryImages = [...images.map((i) => ({ url: i.url, caption: i.caption })), ...(preview ? [{ url: preview, caption: `Catalogue page ${p.source_page}` }] : [])]
   return (
     <article className="space-y-5">
       <nav aria-label="Breadcrumb" className="text-sm text-steel-600">
@@ -77,13 +79,10 @@ export default function ProductDetail() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]">
         <div className="space-y-6">
-          <section aria-label="Catalogue page" className="border border-steel-300 bg-white">
-            {preview ? (
-              <figure><img src={preview} alt={`Catalogue page ${p.source_page}`} className="w-full" /><figcaption className="px-3 py-2 text-xs text-steel-600">Catalogue page {p.source_page}</figcaption></figure>
-            ) : (
-              <p className="p-6 text-sm text-steel-600">No page image has been uploaded for this product. See page {show(p.source_page)} of the original catalogue.</p>)}
+          <section aria-label="Images">
+            <Gallery name={p.name} images={galleryImages} />
+            {galleryImages.length === 0 && <p className="mt-2 text-sm text-steel-600">No images yet. See page {show(p.source_page)} of the original catalogue.</p>}
           </section>
-          {images.length > 0 && <div className="flex flex-wrap gap-3">{images.map((i) => <img key={i.url} src={i.url} alt={i.caption ?? p.name} className="h-40 border border-steel-300 bg-white" />)}</div>}
           <p>{show(p.description)}</p>
           <section aria-labelledby="td"><h2 id="td" className="font-semibold mb-2">Technical data</h2>
             <dl className="grid sm:grid-cols-2 gap-px bg-steel-300 border border-steel-300">

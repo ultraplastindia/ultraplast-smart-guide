@@ -3,19 +3,21 @@ import { useParams } from 'react-router-dom'
 import { getShared, signImages, type Shared, type SharedProduct } from '../lib/share'
 import { exportSharedPdf } from '../lib/sharePdf'
 import { na } from '../lib/bom'
+import { LOGO_DATA_URL } from '../lib/logo'
+import { Gallery, type GalleryImage } from '../components/ImageViewer'
 
 const COMPANY = 'Ultraplast Chainbelts Pvt. Ltd.'
 const SITE = 'https://www.ultraplastindia.com/'
 
 function Block({ p, urls, big }: { p: SharedProduct; urls: Map<string, string>; big?: boolean }) {
-  const imgs = (big ? p.images : p.images.slice(0, 1)).map((i) => ({ url: urls.get(i.path), caption: i.caption })).filter((i) => i.url)
+  const imgs: GalleryImage[] = (big ? p.images : p.images.slice(0, 1)).map((i) => ({ url: urls.get(i.path) ?? '', caption: i.caption })).filter((i) => i.url)
   const mm = (v: number | null) => (v === null ? na(null) : `${v} mm`)
   const rows: [string, string][] = [['Product code', p.product_code], ['Categories', na(p.categories.join(', '))], ['Brand', na(p.brand)], ['Material', na(p.material)],
     ['Pitch', mm(p.pitch_mm)], ['Width', mm(p.width_mm)], ['Thickness', mm(p.thickness_mm)], ['Colour', na(p.colour)], ['Application', na(p.application)]]
   return (
     <article className="break-inside-avoid border border-steel-300 bg-white p-4 space-y-3">
       <h2 className={`font-bold ${big ? 'text-2xl' : 'text-lg'}`}>{p.name}</h2>
-      {imgs.length > 0 && <div className="flex flex-wrap gap-3">{imgs.map((i) => <img key={i.url} src={i.url} alt={i.caption ?? p.name} className={big ? 'max-h-72 max-w-full' : 'h-32'} />)}</div>}
+      {imgs.length > 0 && <div className={big ? 'max-w-xl' : 'max-w-xs'}><Gallery images={imgs} name={p.name} compact={!big} /></div>}
       {p.description && <p className="text-sm">{p.description}</p>}
       <dl className="grid sm:grid-cols-2 gap-px bg-steel-300 border border-steel-300">
         {rows.map(([k, v]) => <div key={k} className="bg-white px-3 py-1.5"><dt className="text-xs text-steel-600">{k}</dt><dd className="text-sm">{v}</dd></div>)}
@@ -54,10 +56,12 @@ export default function SharePage() {
     return () => { live = false }
   }, [token])
 
-  const pdf = async () => {
+  const pdf = async (mode: 'download' | 'print') => {
     if (!data) return
+    const win = mode === 'print' ? window.open('', '_blank') : null
+    win?.document.write('<p style="font-family:sans-serif;padding:24px">Preparing your document…</p>')
     setBusy(true); setErr('')
-    try { await exportSharedPdf(data, urls) } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
+    try { await exportSharedPdf(data, urls, mode, win) } catch (e) { win?.close(); setErr((e as Error).message) } finally { setBusy(false) }
   }
   const unverified = data ? (data.kind === 'product' ? !data.product.verified : data.products.some((p) => !p.verified)) : false
 
@@ -66,12 +70,12 @@ export default function SharePage() {
       <header className="bg-steel-950 print:bg-white print:border-b print:border-steel-300">
         <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-3">
           <a href={SITE} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-white print:text-steel-950 font-bold text-lg">
-            {logoOk && <img src="/logo.png" alt="" className="h-8 w-auto bg-white px-2 py-1 rounded-sm" onError={() => setLogoOk(false)} />}
+            {logoOk && <img src={LOGO_DATA_URL} alt="" className="h-9 w-auto bg-white px-2 py-1 rounded-sm" onError={() => setLogoOk(false)} />}
             <span>{COMPANY}</span>
           </a>
           {data && (<div className="flex gap-2 print:hidden">
-            <button onClick={() => window.print()} className="border border-steel-300 bg-white px-3 py-1 text-sm">Print</button>
-            <button onClick={() => void pdf()} disabled={busy} className="bg-amber-chain text-steel-950 px-3 py-1 text-sm font-medium disabled:opacity-60">{busy ? 'Preparing PDF…' : 'Download PDF'}</button>
+            <button onClick={() => void pdf('print')} disabled={busy} className="border border-steel-300 bg-white px-3 py-1 text-sm disabled:opacity-60">Print</button>
+            <button onClick={() => void pdf('download')} disabled={busy} className="bg-amber-chain text-steel-950 px-3 py-1 text-sm font-medium disabled:opacity-60">{busy ? 'Preparing PDF…' : 'Download PDF'}</button>
           </div>)}
         </div>
       </header>

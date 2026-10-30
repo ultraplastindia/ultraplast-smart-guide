@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { LOGO_DATA_URL } from './logo'
 import { fileStem, groupByCategory, hasUnverified, na, specText, totalQuantity, type BomExport } from './bom'
 
 export async function fetchExport(bomId: string): Promise<BomExport> {
@@ -40,12 +41,7 @@ export async function exportExcel(d: BomExport) {
 const NA_TEXT = 'Not available'
 
 export async function loadLogo(): Promise<string | null> {
-  try {
-    const res = await fetch('/logo.png')
-    if (!res.ok || !(res.headers.get('content-type') ?? '').includes('image')) return null
-    const blob = await res.blob()
-    return await new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = () => ok(null); r.readAsDataURL(blob) })
-  } catch { return null }
+  return LOGO_DATA_URL
 }
 
 export async function exportPdf(d: BomExport) {

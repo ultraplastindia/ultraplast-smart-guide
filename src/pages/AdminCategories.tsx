@@ -31,6 +31,13 @@ export default function AdminCategories() {
     await done(error, 'Category added.')
   }
 
+  const remove = async (c: Cat) => {
+    const { count } = await supabase.from('product_category_links').select('product_id', { count: 'exact', head: true }).eq('category_id', c.id)
+    if (!window.confirm(`Delete the category "${c.name}"? ${count ?? 0} product(s) stay in the catalogue but lose this category. To hide it instead, untick Visible.`)) return
+    const { error } = await supabase.from('product_categories').delete().eq('id', c.id)
+    await done(error, 'Category deleted.')
+  }
+
   const move = async (i: number, dir: -1 | 1) => {
     if (!cats) return
     const list = [...cats]; const j = i + dir
@@ -56,7 +63,7 @@ export default function AdminCategories() {
       {cats?.length === 0 && <p className="text-steel-600">No categories yet.</p>}
       {cats && cats.length > 0 && (
         <div className="overflow-x-auto border border-steel-300 bg-white"><table className="w-full text-sm">
-          <thead className="bg-steel-100 text-left"><tr>{['Order', 'Name', 'Description', 'Explorer area', 'Visible'].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}</tr></thead>
+          <thead className="bg-steel-100 text-left"><tr>{['Order', 'Name', 'Description', 'Explorer area', 'Visible', ''].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}</tr></thead>
           <tbody>{cats.map((c, i) => (
             <tr key={c.id + c.name + c.description} className="border-t border-steel-300 align-top">
               <td className="px-3 py-2 whitespace-nowrap">
@@ -66,6 +73,7 @@ export default function AdminCategories() {
               <td className="px-3 py-2"><input aria-label={`Description of ${c.name}`} className={f} defaultValue={c.description ?? ''} maxLength={500} onBlur={(e) => e.target.value !== (c.description ?? '') && void update(c.id, { description: e.target.value.trim() || null })} /></td>
               <td className="px-3 py-2"><select aria-label={`Explorer area of ${c.name}`} className={f} value={c.explorer_zone ?? ''} onChange={(e) => void update(c.id, { explorer_zone: e.target.value || null })}>{ZONES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></td>
               <td className="px-3 py-2"><input type="checkbox" aria-label={`${c.name} visible to users`} checked={c.is_active} onChange={(e) => void update(c.id, { is_active: e.target.checked })} /></td>
+              <td className="px-3 py-2"><button className="underline text-red-700" onClick={() => void remove(c)}>Delete</button></td>
             </tr>))}</tbody></table></div>)}
     </div>
   )
