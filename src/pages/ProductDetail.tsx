@@ -11,7 +11,7 @@ interface Detail {
   id: string; product_code: string; name: string; category_id: string | null; brand: string | null; description: string | null; material: string | null
   pitch_mm: number | null; width_mm: number | null; thickness_mm: number | null; colour: string | null; application: string | null
   verification_status: string; source_page: number | null; drawing_ref: string | null
-  product_category_links: { product_categories: { name: string } | null }[]
+  product_category_links: { category_id: string; product_categories: { name: string } | null }[]
   product_categories: { name: string } | null; catalogues: { name: string; edition: string | null } | null
   product_specifications: { spec_key: string; spec_value: string; unit: string | null; source_page: number | null }[]
   technical_documents: { id: string; title: string; doc_type: string; storage_path: string }[]
@@ -26,18 +26,24 @@ export default function ProductDetail() {
   const [err, setErr] = useState('')
   const [preview, setPreview] = useState<string | null>(null)
   const [images, setImages] = useState<{ url: string; caption: string | null }[]>([])
+  const [catDocs, setCatDocs] = useState<{ id: string; title: string; doc_type: string; storage_path: string }[]>([])
 
   useEffect(() => {
     let live = true
-    setP(null); setPreview(null); setImages([]); setRelated([]); setErr('')
+    setP(null); setPreview(null); setImages([]); setRelated([]); setCatDocs([]); setErr('')
     ;(async () => {
       const { data, error } = await supabase.from('products')
-        .select('*,product_categories!category_id(name),product_category_links(product_categories(name)),catalogues(name,edition),product_specifications(spec_key,spec_value,unit,source_page),technical_documents(id,title,doc_type,storage_path)')
+        .select('*,product_categories!category_id(name),product_category_links(category_id,product_categories(name)),catalogues(name,edition),product_specifications(spec_key,spec_value,unit,source_page),technical_documents(id,title,doc_type,storage_path)')
         .eq('id', id ?? '').maybeSingle()
       if (!live) return
       if (error) return setErr(error.message)
       if (!data) return setErr('Product not found, or you do not have access to it.')
       setP(data as unknown as Detail)
+      const catIds = ((data.product_category_links ?? []) as { category_id: string }[]).map((l) => l.category_id)
+      if (catIds.length) {
+        const cd = await supabase.from('technical_documents').select('id,title,doc_type,storage_path').in('category_id', catIds)
+        if (live && cd.data) setCatDocs(cd.data as { id: string; title: string; doc_type: string; storage_path: string }[])
+      }
       void pagePreviewUrl(data.source_page as number | null).then((u) => live && setPreview(u))
       const im = await supabase.from('product_images').select('storage_path,caption').eq('product_id', data.id).order('sort_order')
       if (im.data?.length) {
@@ -104,7 +110,12 @@ export default function ProductDetail() {
           </div>
           <div className="print:hidden space-y-3 border border-steel-300 bg-white p-3"><h2 className="font-semibold">My selection</h2><AddToBom productId={p.id} /><CompareToggle id={p.id} /></div>
           <section aria-labelledby="dc"><h2 id="dc" className="font-semibold mb-1">Documents</h2>
-            {p.technical_documents.length === 0 ? <p className="text-sm text-steel-600">{show(null)}</p> : <ul className="text-sm space-y-1">{p.technical_documents.map((d) => <li key={d.id}>{d.title} ({d.doc_type}) <button className="underline ml-1" onClick={() => void openDocument('technical-documents', d.storage_path).catch((e: Error) => setErr(e.message))}>Download</button></li>)}</ul>}
+            {(() => {
+              const all = [...p.technical_documents, ...catDocs.filter((c) => !p.technical_documents.some((d) => d.id === c.id))]
+              return all.length === 0 ? <p className="text-sm text-steel-600">{show(null)}</p> : (
+                <ul className="text-sm space-y-1">{all.map((d) => <li key={d.id}>{d.title} <span className="text-steel-600">({d.doc_type})</span> <button className="underline ml-1" onClick={() => void openDocument('technical-documents', d.storage_path).catch((e: Error) => setErr(e.message))}>Download</button></li>)}</ul>)
+            })()}
+            <p className="mt-1 text-xs"><Link className="underline" to={`/documents?q=${encodeURIComponent(p.product_code)}`}>All documents for this product</Link></p>
           </section>
           <section aria-labelledby="rl"><h2 id="rl" className="font-semibold mb-1">Related products</h2>
             {related.length === 0 ? <p className="text-sm text-steel-600">{show(null)}</p> : <ul className="text-sm">{related.map((r) => <li key={r.id}><Link className="underline" to={`/products/${r.id}`}>{r.product_code} — {r.name}</Link></li>)}</ul>}

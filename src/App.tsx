@@ -23,7 +23,9 @@ import SharePage from './pages/SharePage'
 import AdminPageImages from './pages/AdminPageImages'
 import AdminFiles from './pages/AdminFiles'
 import AdminDashboard from './pages/AdminDashboard'
-import { Dashboard, Help, Profile } from './pages/Account'
+import { Profile } from './pages/Account'
+import Dashboard from './pages/Dashboard'
+import Help from './pages/Help'
 
 export default function App() {
   return (

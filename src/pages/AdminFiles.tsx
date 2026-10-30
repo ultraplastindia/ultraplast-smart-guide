@@ -9,10 +9,11 @@ export default function AdminFiles() {
   const [files, setFiles] = useState<Obj[] | null>(null)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [picked, setPicked] = useState<Set<string>>(new Set())
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.storage.from('catalogues').list('', { limit: 200, sortBy: { column: 'created_at', order: 'desc' } })
-    if (error) setMsg({ ok: false, text: error.message }); else setFiles(data as unknown as Obj[])
+    if (error) setMsg({ ok: false, text: error.message }); else { setFiles(data as unknown as Obj[]); setPicked(new Set()) }
   }, [])
   useEffect(() => { void load() }, [load])
 
@@ -32,10 +33,11 @@ export default function AdminFiles() {
     if (error || !data) return setMsg({ ok: false, text: error?.message ?? 'Could not create a link.' })
     window.open(data.signedUrl, '_blank', 'noopener')
   }
-  const remove = async (name: string) => {
-    if (!window.confirm('Delete this file permanently?')) return
-    const { error } = await supabase.storage.from('catalogues').remove([name])
-    setMsg(error ? { ok: false, text: error.message } : { ok: true, text: 'Deleted.' })
+  const remove = async (names: string[]) => {
+    if (names.length === 0) return setMsg({ ok: false, text: 'Select at least one file.' })
+    if (!window.confirm(names.length === 1 ? 'Delete this file permanently?' : `Delete ${names.length} files permanently?`)) return
+    const { error } = await supabase.storage.from('catalogues').remove(names)
+    setMsg(error ? { ok: false, text: error.message } : { ok: true, text: `${names.length} file(s) deleted.` })
     if (!error) await load()
   }
 
@@ -48,12 +50,19 @@ export default function AdminFiles() {
       <div><label htmlFor="cf" className="block text-sm font-medium">Upload a PDF</label><input id="cf" type="file" accept=".pdf" disabled={busy} onChange={(e) => { void upload(e.target.files?.[0] ?? null); e.target.value = '' }} /></div>
       {files === null && !msg && <p role="status" className="text-steel-600">Loading…</p>}
       {files?.length === 0 && <p className="text-steel-600">No files yet.</p>}
+      {files && files.length > 0 && (<div className="flex flex-wrap items-center gap-2 text-sm">
+        <span aria-live="polite">{picked.size} selected</span>
+        <button className="border border-steel-300 bg-white px-3 py-1 hover:bg-steel-100" onClick={() => setPicked(new Set(files.map((f) => f.name)))}>Select all</button>
+        <button className="border border-steel-300 bg-white px-3 py-1 hover:bg-steel-100" onClick={() => setPicked(new Set())}>Clear</button>
+        <button className="border border-steel-300 bg-white px-3 py-1 text-red-700 hover:bg-steel-100" onClick={() => void remove([...picked])}>Delete selected</button>
+      </div>)}
       {files && files.length > 0 && (
         <ul className="divide-y divide-steel-300 border border-steel-300 bg-white">
           {files.map((f) => (
             <li key={f.name} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-              <span className="truncate">{f.name.replace(/^\d+-/, '')} <span className="text-steel-600">({mb(f.metadata?.size)})</span></span>
-              <span className="space-x-3 whitespace-nowrap"><button className="underline" onClick={() => void open(f.name)}>Download</button><button className="underline text-red-700" onClick={() => void remove(f.name)}>Delete</button></span>
+              <input type="checkbox" aria-label={`Select ${f.name}`} checked={picked.has(f.name)} onChange={() => setPicked((s) => { const n = new Set(s); if (n.has(f.name)) n.delete(f.name); else n.add(f.name); return n })} />
+              <span className="truncate flex-1">{f.name.replace(/^\d+-/, '')} <span className="text-steel-600">({mb(f.metadata?.size)})</span></span>
+              <span className="space-x-3 whitespace-nowrap"><button className="underline" onClick={() => void open(f.name)}>Download</button><button className="underline text-red-700" onClick={() => void remove([f.name])}>Delete</button></span>
             </li>))}
         </ul>)}
     </div>

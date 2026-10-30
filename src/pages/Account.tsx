@@ -1,27 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
-import { useCompare } from '../lib/compare'
 import { STATUS_LABEL } from '../lib/access'
-
-export function Dashboard() {
-  const [boms, setBoms] = useState<number | null>(null)
-  const { ids } = useCompare()
-  useEffect(() => {
-    supabase.from('boms').select('id', { count: 'exact', head: true }).then(({ count }) => setBoms(count))
-  }, [])
-  return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
-      <ul className="grid gap-px bg-steel-300 border border-steel-300 sm:grid-cols-3">
-        <li className="bg-white px-4 py-3"><p className="text-sm text-steel-600">My BOMs</p><p className="text-2xl font-bold">{boms ?? 'Not available'}</p></li>
-        <li className="bg-white px-4 py-3"><p className="text-sm text-steel-600">Products to compare</p><p className="text-2xl font-bold">{ids.length}</p></li>
-      </ul>
-      <p className="text-sm space-x-4"><Link className="underline" to="/catalogue">Catalogue</Link><Link className="underline" to="/bom">My BOM</Link><Link className="underline" to="/documents">Documents</Link></p>
-    </div>
-  )
-}
 
 export function Profile() {
   const { session, status, role } = useAuth()
@@ -50,17 +30,5 @@ export function Profile() {
       <button className="bg-belt-700 text-white px-4 py-2">Save</button>
       <p className="text-xs text-steel-600">Your email, role and access status can only be changed by an administrator.</p>
     </form>
-  )
-}
-
-export function Help() {
-  return (
-    <div className="max-w-2xl space-y-4">
-      <h1 className="text-2xl font-bold">Help</h1>
-      <section><h2 className="font-semibold">Searching</h2><p className="text-sm">Search by product code, name or specification. Codes match without spaces or dashes, so 1001FT finds 1001-FT.</p></section>
-      <section><h2 className="font-semibold">Data status</h2><p className="text-sm">“Not verified” means a person has not yet checked the record against the original catalogue page. Always check the catalogue page before relying on a value. “Not available” means the catalogue data does not include it.</p></section>
-      <section><h2 className="font-semibold">Bill of materials</h2><p className="text-sm">Open a product and choose Add to BOM. In My BOM you can change quantities, add notes, and export to Excel or PDF if your account has the export permission, or print.</p></section>
-      <section><h2 className="font-semibold">Access problems</h2><p className="text-sm">Access is approved by an Ultraplast administrator. If you cannot open a page or file, ask your administrator to check your role and permissions.</p></section>
-    </div>
   )
 }

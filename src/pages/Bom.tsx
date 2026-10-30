@@ -22,12 +22,15 @@ export default function BomPage() {
   const [name, setName] = useState('')
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [picked, setPicked] = useState<Set<string>>(new Set())
   const bom = boms.find((b) => b.id === sel)
 
   const loadBoms = useCallback(async () => {
     const { data, error } = await supabase.from('boms').select('id,reference,name,project,notes,updated_at').order('updated_at', { ascending: false })
     if (error) return setMsg({ ok: false, text: error.message })
-    setBoms(data as Bom[]); setSel((cur) => cur || data[0]?.id || '')
+    setBoms(data as Bom[])
+    const want = new URLSearchParams(window.location.search).get('open')
+    setSel((cur) => cur || data.find((b) => b.id === want)?.id || data[0]?.id || '')
   }, [])
   const loadLines = useCallback(async (id: string) => {
     if (!id) return setLines([])
@@ -43,6 +46,7 @@ export default function BomPage() {
   }, [])
   useEffect(() => { void loadBoms() }, [loadBoms])
   useEffect(() => { void loadLines(sel) }, [sel, loadLines])
+  useEffect(() => { setPicked(new Set()) }, [sel, lines])
 
   const fail = (e: { message: string } | null) => { if (e) setMsg({ ok: false, text: e.message }); return !e }
   const create = async (e: FormEvent) => {
@@ -55,6 +59,11 @@ export default function BomPage() {
   const updateBom = async (change: Partial<Bom>) => { if (fail((await supabase.from('boms').update(change).eq('id', sel)).error)) await loadBoms() }
   const updateLine = async (id: string, change: { quantity?: number; notes?: string | null }) => { if (fail((await supabase.from('bom_items').update(change).eq('id', id)).error)) await loadLines(sel) }
   const removeLine = async (id: string) => { if (fail((await supabase.from('bom_items').delete().eq('id', id)).error)) await loadLines(sel) }
+  const removeLines = async (ids: string[]) => {
+    if (ids.length === 0) return setMsg({ ok: false, text: 'Select at least one line.' })
+    if (!window.confirm(`Remove ${ids.length} line(s) from this BOM?`)) return
+    if (fail((await supabase.from('bom_items').delete().in('id', ids)).error)) await loadLines(sel)
+  }
   const removeBom = async () => {
     if (!window.confirm('Delete this BOM and all its lines?')) return
     if (fail((await supabase.from('boms').delete().eq('id', sel)).error)) { setSel(''); await loadBoms() }
@@ -94,13 +103,20 @@ export default function BomPage() {
 
         {lines.length === 0 ? <p className="text-steel-600">This BOM is empty. Open a product and choose Add to BOM.</p> : (
           <div className="space-y-5">
+            <div className="flex flex-wrap items-center gap-2 text-sm print:hidden">
+              <span aria-live="polite">{picked.size} selected</span>
+              <button className="border border-steel-300 bg-white px-3 py-1 hover:bg-steel-100" onClick={() => setPicked(new Set(lines.map((l) => l.id)))}>Select all lines</button>
+              <button className="border border-steel-300 bg-white px-3 py-1 hover:bg-steel-100" onClick={() => setPicked(new Set())}>Clear</button>
+              <button className="border border-steel-300 bg-white px-3 py-1 text-red-700 hover:bg-steel-100" onClick={() => void removeLines([...picked])}>Remove selected</button>
+            </div>
             {groupByCategory(lines).map((g) => (
               <section key={g.category} aria-label={g.category}>
                 <h2 className="font-semibold mb-1">{g.category}</h2>
                 <div className="overflow-x-auto border border-steel-300 bg-white"><table className="w-full text-sm">
-                  <thead className="bg-steel-100 text-left"><tr>{['Code', 'Description', 'Qty', 'Material', 'Pitch', 'Width', 'Cat. page', 'Status', 'Notes', ''].map((h, i) => <th key={i} className="px-3 py-2">{h}</th>)}</tr></thead>
+                  <thead className="bg-steel-100 text-left"><tr><th className="px-3 py-2 print:hidden"><span className="sr-only">Select</span></th>{['Code', 'Description', 'Qty', 'Material', 'Pitch', 'Width', 'Cat. page', 'Status', 'Notes', ''].map((h, i) => <th key={i} className="px-3 py-2">{h}</th>)}</tr></thead>
                   <tbody>{g.items.map((l) => (
                     <tr key={l.id} className="border-t border-steel-300 align-top">
+                      <td className="px-3 py-2 print:hidden"><input type="checkbox" aria-label={`Select ${l.product_code}`} checked={picked.has(l.id)} onChange={() => setPicked((s) => { const n = new Set(s); if (n.has(l.id)) n.delete(l.id); else n.add(l.id); return n })} /></td>
                       <td className="px-3 py-2 font-mono">{l.product_code}</td><td className="px-3 py-2">{l.name}</td>
                       <td className="px-3 py-2"><input aria-label={`Quantity for ${l.product_code}`} type="number" min={1} max={100000} defaultValue={l.quantity} className={`${field} w-20 print:border-0`}
                         onBlur={(e) => { const q = Math.floor(Number(e.target.value)); if (q >= 1 && q <= 100000 && q !== l.quantity) void updateLine(l.id, { quantity: q }); else e.target.value = String(l.quantity) }} /></td>

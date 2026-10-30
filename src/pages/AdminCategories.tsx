@@ -11,10 +11,11 @@ export default function AdminCategories() {
   const [desc, setDesc] = useState('')
   const [zone, setZone] = useState('')
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [picked, setPicked] = useState<Set<string>>(new Set())
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.from('product_categories').select('id,name,slug,description,explorer_zone,sort_order,is_active').order('sort_order').order('name')
-    if (error) setMsg({ ok: false, text: error.message }); else setCats(data as Cat[])
+    if (error) setMsg({ ok: false, text: error.message }); else { setCats(data as Cat[]); setPicked(new Set()) }
   }, [])
   useEffect(() => { void load() }, [load])
 
@@ -37,6 +38,14 @@ export default function AdminCategories() {
     const { error } = await supabase.from('product_categories').delete().eq('id', c.id)
     await done(error, 'Category deleted.')
   }
+
+  const removeMany = async (ids: string[]) => {
+    if (ids.length === 0) return setMsg({ ok: false, text: 'Select at least one category.' })
+    if (!window.confirm(`Delete ${ids.length} categor${ids.length === 1 ? 'y' : 'ies'}? Their products stay in the catalogue but lose these categories. To hide them instead, untick Visible.`)) return
+    const { error } = await supabase.from('product_categories').delete().in('id', ids)
+    await done(error, `${ids.length} categor${ids.length === 1 ? 'y' : 'ies'} deleted.`)
+  }
+  const toggle = (id: string) => setPicked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
 
   const move = async (i: number, dir: -1 | 1) => {
     if (!cats) return
@@ -61,11 +70,18 @@ export default function AdminCategories() {
       </form>
       {cats === null && <p role="status" className="text-steel-600">Loading…</p>}
       {cats?.length === 0 && <p className="text-steel-600">No categories yet.</p>}
+      {cats && cats.length > 0 && (<div className="flex flex-wrap items-center gap-2 text-sm">
+        <span aria-live="polite">{picked.size} selected</span>
+        <button className="border border-steel-300 bg-white px-3 py-1 hover:bg-steel-100" onClick={() => setPicked(new Set(cats.map((c) => c.id)))}>Select all</button>
+        <button className="border border-steel-300 bg-white px-3 py-1 hover:bg-steel-100" onClick={() => setPicked(new Set())}>Clear</button>
+        <button className="border border-steel-300 bg-white px-3 py-1 text-red-700 hover:bg-steel-100" onClick={() => void removeMany([...picked])}>Delete selected</button>
+      </div>)}
       {cats && cats.length > 0 && (
         <div className="overflow-x-auto border border-steel-300 bg-white"><table className="w-full text-sm">
-          <thead className="bg-steel-100 text-left"><tr>{['Order', 'Name', 'Description', 'Explorer area', 'Visible', ''].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}</tr></thead>
+          <thead className="bg-steel-100 text-left"><tr><th className="px-3 py-2"><span className="sr-only">Select</span></th>{['Order', 'Name', 'Description', 'Explorer area', 'Visible', ''].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}</tr></thead>
           <tbody>{cats.map((c, i) => (
             <tr key={c.id + c.name + c.description} className="border-t border-steel-300 align-top">
+              <td className="px-3 py-2"><input type="checkbox" aria-label={`Select ${c.name}`} checked={picked.has(c.id)} onChange={() => toggle(c.id)} /></td>
               <td className="px-3 py-2 whitespace-nowrap">
                 <button aria-label={`Move ${c.name} up`} disabled={i === 0} onClick={() => void move(i, -1)} className="border border-steel-300 px-2 disabled:opacity-30">↑</button>{' '}
                 <button aria-label={`Move ${c.name} down`} disabled={i === cats.length - 1} onClick={() => void move(i, 1)} className="border border-steel-300 px-2 disabled:opacity-30">↓</button></td>

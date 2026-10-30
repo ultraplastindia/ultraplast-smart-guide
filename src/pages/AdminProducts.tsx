@@ -35,11 +35,7 @@ function List() {
   const [page, setPage] = useState(0)
   const [err, setErr] = useState('')
   const [note, setNote] = useState('')
-
-  const del = async (id: string, code: string) => {
-    if (!window.confirm(`Delete ${code} permanently? Its specifications, images and documents are deleted too. BOM lines that use it keep its code and name.`)) return
-    try { await deleteProducts([id]); setNote(`Deleted ${code}.`); setErr(''); await load() } catch (e) { setErr((e as Error).message) }
-  }
+  const [picked, setPicked] = useState<Set<string>>(new Set())
 
   const load = useCallback(async () => {
     let query = supabase.from('products').select('id,product_code,name,status,verification_status,product_categories!category_id(name)', { count: 'exact' })
@@ -49,11 +45,19 @@ function List() {
     if (status) query = query.eq('status', status)
     const { data, error, count } = await query
     if (error) return setErr(error.message)
-    setErr(''); setRows(data as unknown as NonNullable<typeof rows>); setTotal(count ?? 0)
+    setErr(''); setRows(data as unknown as NonNullable<typeof rows>); setTotal(count ?? 0); setPicked(new Set())
   }, [q, status, page])
   useEffect(() => { void load() }, [load])
 
+  const removeMany = async (ids: string[], label: string) => {
+    if (ids.length === 0) return setErr('Select at least one product.')
+    if (!window.confirm(`Delete ${label} permanently? Their specifications, images and documents are deleted too. BOM lines that use them keep the code and name.`)) return
+    try { await deleteProducts(ids); setNote(`${ids.length} product(s) deleted.`); setErr(''); await load() } catch (e) { setErr((e as Error).message) }
+  }
+  const toggle = (id: string) => setPicked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
+
   const f = 'border border-steel-300 px-3 py-2 bg-white'
+  const btn = 'border border-steel-300 bg-white px-3 py-1 text-sm hover:bg-steel-100'
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between"><h1 className="text-2xl font-bold">Products</h1><Link to="/admin/products/new" className="bg-belt-700 text-white px-4 py-2">New product</Link></div>
@@ -67,15 +71,21 @@ function List() {
       {rows === null && !err && <p role="status" className="text-steel-600">Loading…</p>}
       {rows?.length === 0 && <p className="text-steel-600">No products match.</p>}
       {rows && rows.length > 0 && (<>
-        <p className="text-sm text-steel-600" aria-live="polite">{total} products</p>
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span aria-live="polite">{total} products, {picked.size} selected</span>
+          <button className={btn} onClick={() => setPicked(new Set(rows.map((r) => r.id)))}>Select all on this page</button>
+          <button className={btn} onClick={() => setPicked(new Set())}>Clear</button>
+          <button className={`${btn} text-red-700`} onClick={() => void removeMany([...picked], `${picked.size} selected product(s)`)}>Delete selected</button>
+        </div>
         <div className="overflow-x-auto border border-steel-300 bg-white"><table className="w-full text-sm">
-          <thead className="bg-steel-100 text-left"><tr>{['Code', 'Name', 'Category', 'Status', 'Data', ''].map((h, i) => <th key={i} className="px-3 py-2">{h}</th>)}</tr></thead>
+          <thead className="bg-steel-100 text-left"><tr><th className="px-3 py-2"><span className="sr-only">Select</span></th>{['Code', 'Name', 'Category', 'Status', 'Data', ''].map((h, i) => <th key={i} className="px-3 py-2">{h}</th>)}</tr></thead>
           <tbody>{rows.map((r) => (
             <tr key={r.id} className="border-t border-steel-300">
+              <td className="px-3 py-2"><input type="checkbox" aria-label={`Select ${r.product_code}`} checked={picked.has(r.id)} onChange={() => toggle(r.id)} /></td>
               <td className="px-3 py-2 font-mono">{r.product_code}</td><td className="px-3 py-2">{r.name}</td><td className="px-3 py-2">{show(r.product_categories?.name)}</td>
               <td className="px-3 py-2">{r.status === 'active' ? 'Published' : r.status === 'draft' ? 'Draft' : 'Archived'}</td>
               <td className="px-3 py-2">{r.verification_status === 'verified' ? 'Verified' : 'Not verified'}</td>
-              <td className="px-3 py-2 space-x-3 whitespace-nowrap"><Link className="underline" to={`/admin/products/${r.id}`}>Edit</Link><button className="underline text-red-700" onClick={() => void del(r.id, r.product_code)}>Delete</button></td></tr>))}</tbody></table></div>
+              <td className="px-3 py-2 space-x-3 whitespace-nowrap"><Link className="underline" to={`/admin/products/${r.id}`}>Edit</Link><button className="underline text-red-700" onClick={() => void removeMany([r.id], r.product_code)}>Delete</button></td></tr>))}</tbody></table></div>
         <div className="flex gap-3 text-sm">
           <button disabled={page === 0} onClick={() => setPage(page - 1)} className="border border-steel-300 px-3 py-1 disabled:opacity-40">Previous</button>
           <button disabled={(page + 1) * SIZE >= total} onClick={() => setPage(page + 1)} className="border border-steel-300 px-3 py-1 disabled:opacity-40">Next</button></div></>)}
@@ -97,6 +107,7 @@ function Editor({ id }: { id: string }) {
   const [catIds, setCatIds] = useState<string[]>([])
   const [origCats, setOrigCats] = useState<string[]>([])
   const [pending, setPending] = useState<File[]>([])
+  const [selImgs, setSelImgs] = useState<Set<string>>(new Set())
   const [msg, setMsg] = useState<Msg>(null)
   const [busy, setBusy] = useState(false)
 
@@ -198,6 +209,13 @@ function Editor({ id }: { id: string }) {
     if (!window.confirm(`Delete ${f.product_code} permanently? Its specifications, images and documents are deleted too. BOM lines that use it keep its code and name.`)) return
     try { await deleteProducts([id]); nav('/admin/products', { replace: true }) } catch (e) { fail((e as Error).message) }
   }
+  const removeImages = async (list: Img[]) => {
+    if (list.length === 0) return fail('Select at least one image.')
+    if (!window.confirm(`Delete ${list.length} image(s)?`)) return
+    const r = await supabase.from('product_images').delete().in('id', list.map((i) => i.id))
+    if (r.error) return fail(r.error.message)
+    await supabase.storage.from('product-images').remove(list.map((i) => i.storage_path)); setSelImgs(new Set()); await load()
+  }
   const removeImage = async (img: Img) => {
     if (!window.confirm('Delete this image?')) return
     const r = await supabase.from('product_images').delete().eq('id', img.id)
@@ -261,11 +279,18 @@ function Editor({ id }: { id: string }) {
           <div><label htmlFor="if" className="block text-xs text-steel-600">Images: select several at once (PNG, JPG or WEBP, up to 5 MB each)</label><input id="if" type="file" multiple accept=".png,.jpg,.jpeg,.webp" onChange={(e) => { void upload(e.target.files); e.target.value = '' }} /></div>
         </div>
         {isNew && pending.length > 0 && <p className="text-sm">{pending.length} image(s) will upload when you save: {pending.map((f) => f.name).join(', ')} <button className="underline ml-2" onClick={() => setPending([])}>Clear</button></p>}
-        {!isNew && (images.length === 0 ? <p className="text-sm text-steel-600">No images yet.</p> : (
+        {!isNew && (images.length === 0 ? <p className="text-sm text-steel-600">No images yet.</p> : (<>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span aria-live="polite">{selImgs.size} selected</span>
+            <button className="border border-steel-300 bg-white px-3 py-1 hover:bg-steel-100" onClick={() => setSelImgs(new Set(images.map((i) => i.id)))}>Select all</button>
+            <button className="border border-steel-300 bg-white px-3 py-1 hover:bg-steel-100" onClick={() => setSelImgs(new Set())}>Clear</button>
+            <button className="border border-steel-300 bg-white px-3 py-1 text-red-700 hover:bg-steel-100" onClick={() => void removeImages(images.filter((i) => selImgs.has(i.id)))}>Delete selected images</button>
+          </div>
           <ul className="flex flex-wrap gap-3">{images.map((im) => (
             <li key={im.id} className="border border-steel-300 bg-white p-2 text-sm">
+              <label className="flex items-center gap-1 mb-1"><input type="checkbox" checked={selImgs.has(im.id)} onChange={() => setSelImgs((s) => { const n = new Set(s); if (n.has(im.id)) n.delete(im.id); else n.add(im.id); return n })} /> Select</label>
               <div className="w-40 h-32 bg-white border border-steel-300 flex items-center justify-center overflow-hidden">{im.url ? <img src={im.url} alt={im.caption ?? 'Product'} className="max-h-full max-w-full object-contain" /> : <span>Not available</span>}</div>
-              <p className="mt-1">{im.caption ?? ''}</p><button className="underline text-red-700" onClick={() => void removeImage(im)}>Delete</button></li>))}</ul>))}
+              <p className="mt-1">{im.caption ?? ''}</p><button className="underline text-red-700" onClick={() => void removeImage(im)}>Delete</button></li>))}</ul></>))}
       </section>
     </div>
   )

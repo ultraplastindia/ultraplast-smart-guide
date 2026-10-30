@@ -53,3 +53,6 @@ The logo is `public/logo.png` (header, PDFs). Downloaded PDFs carry the logo and
 
 ## Logo, print, delete
 The logo is embedded in `src/lib/logo.ts` (header, print, PDFs), so it always shows. Print opens a PDF with the company letterhead and watermark. Delete buttons: products (list, edit page, review queue), categories, documents.
+
+## Bulk delete, dashboard, help, documents
+Bulk select and delete: products, categories, documents, product images, BOM lines, catalogue files, customer links (withdraw). Dashboard and Help are rewritten. Documents belong to a product or category and can be edited, searched and filtered.
