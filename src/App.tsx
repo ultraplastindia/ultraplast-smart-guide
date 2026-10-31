@@ -19,6 +19,8 @@ import AdminProducts from './pages/AdminProducts'
 import AdminCategories from './pages/AdminCategories'
 import AdminImages from './pages/AdminImages'
 import AdminShare from './pages/AdminShare'
+import Guide from './pages/Guide'
+import AdminRfq from './pages/AdminRfq'
 import SharePage from './pages/SharePage'
 import AdminPageImages from './pages/AdminPageImages'
 import AdminFiles from './pages/AdminFiles'
@@ -40,6 +42,8 @@ export default function App() {
           <Route index element={<Home />} />
           <Route path="categories" element={<Categories />} />
           <Route path="explorer" element={<Explorer />} />
+          <Route path="guide" element={<Guide />} />
+          <Route path="guide/:kind/:id" element={<Guide />} />
           <Route path="catalogue" element={<Catalogue />} />
           <Route path="products/:id" element={<ProductDetail />} />
           <Route path="compare" element={<Compare />} />
@@ -65,6 +69,9 @@ export default function App() {
           </Route>
           <Route element={<RequirePermission permission="create_share_links" />}>
             <Route path="admin/share" element={<AdminShare />} />
+          </Route>
+          <Route element={<RequirePermission permission="manage_rfq" />}>
+            <Route path="admin/rfq" element={<AdminRfq />} />
           </Route>
           <Route path="help" element={<Help />} />
         </Route>

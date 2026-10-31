@@ -56,3 +56,6 @@ The logo is embedded in `src/lib/logo.ts` (header, print, PDFs), so it always sh
 
 ## Bulk delete, dashboard, help, documents
 Bulk select and delete: products, categories, documents, product images, BOM lines, catalogue files, customer links (withdraw). Dashboard and Help are rewritten. Documents belong to a product or category and can be edited, searched and filtered.
+
+## Smart Guide viewer and quotation requests
+Run `supabase/migrations/0010_quotation_requests.sql` once. **Guide** opens a book-style viewer: general index with category bubbles, category pages and product pages, with search, contents, thumbnails, page-code box, previous/next, PDF, print, share link, help and a Request for quotation cart. Requests are listed under Admin, Quotation requests. The illustration and layout are original to Ultraplast.

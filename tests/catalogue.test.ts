@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { NA, PAGE_SIZE, pageCount, parseParams, show, toRpcArgs } from '../src/lib/format'
+import { NA, PAGE_SIZE, buildPages, findPage, guideUrl, pageCount, pageIndexByCode, parseParams, show, toRpcArgs } from '../src/lib/format'
 
 describe('catalogue helpers', () => {
   it('shows "Not available" for missing values, never invents data', () => {
@@ -23,5 +23,22 @@ describe('catalogue helpers', () => {
   it('counts pages', () => {
     expect(pageCount(0)).toBe(1)
     expect(pageCount(PAGE_SIZE + 1)).toBe(2)
+  })
+  it('builds the guide page order: index, category, its products, then other products', () => {
+    const pages = buildPages([{ id: 'a', name: 'Chains' }, { id: 'b', name: 'Belts' }], [
+      { id: 'p2', code: 'B-2', name: 'Belt two', categoryId: 'b' }, { id: 'p1', code: 'A-1', name: 'Chain one', categoryId: 'a' }, { id: 'p9', code: 'Z-9', name: 'Loose', categoryId: null }])
+    expect(pages.map((p) => p.code)).toEqual(['INDEX', 'C01', 'A-1', 'C02', 'B-2', 'C99', 'Z-9'])
+    expect(guideUrl(pages[0])).toBe('/guide')
+    expect(guideUrl(pages[2])).toBe('/guide/p/p1')
+    expect(findPage(pages, 'c', 'b')).toBe(3)
+    expect(findPage(pages, 'p', 'nope')).toBe(-1)
+  })
+  it('finds pages by code, ignoring case, spaces and dashes', () => {
+    const pages = buildPages([{ id: 'a', name: 'Chains' }], [{ id: 'p1', code: '1001 FT-84', name: 'x', categoryId: 'a' }])
+    expect(pageIndexByCode(pages, '1001ft84')).toBe(2)
+    expect(pageIndexByCode(pages, 'c01')).toBe(1)
+    expect(pageIndexByCode(pages, 'Index')).toBe(0)
+    expect(pageIndexByCode(pages, 'missing')).toBe(-1)
+    expect(pageIndexByCode(pages, '  ')).toBe(-1)
   })
 })

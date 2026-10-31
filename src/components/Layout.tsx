@@ -4,11 +4,13 @@ import { Menu, X, LogOut } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { LOGO_DATA_URL } from '../lib/logo'
 import PrintHeader from './PrintHeader'
+import RfqDrawer from './RfqDrawer'
 
 const NAV = [
   ['/', 'Home'],
   ['/categories', 'Categories'],
   ['/explorer', 'Explorer'],
+  ['/guide', 'Guide'],
   ['/catalogue', 'Catalogue'],
   ['/compare', 'Compare'],
   ['/documents', 'Documents'],
@@ -62,6 +64,7 @@ export default function Layout() {
       <footer className="print:hidden border-t border-steel-300 py-4 text-center text-xs text-steel-600">
         Ultraplast Chainbelts Pvt. Ltd. — internal engineering guide. Data shown as “Not available” when unverified.
       </footer>
+      <RfqDrawer />
     </div>
   )
 }

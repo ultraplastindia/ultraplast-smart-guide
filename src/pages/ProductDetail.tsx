@@ -6,6 +6,7 @@ import { openDocument, pagePreviewUrl } from '../lib/catalogue'
 import AddToBom, { CompareToggle } from '../components/AddToBom'
 import ShareBar from '../components/ShareBar'
 import { Gallery } from '../components/ImageViewer'
+import { AddToRfqButton } from '../components/RfqDrawer'
 
 interface Detail {
   id: string; product_code: string; name: string; category_id: string | null; brand: string | null; description: string | null; material: string | null
@@ -108,7 +109,7 @@ export default function ProductDetail() {
             <strong>{STATUS[p.verification_status] ?? show(null)}</strong>
             {!verified && <p>Not checked against the original catalogue. Check page {show(p.source_page)} before relying on it.</p>}
           </div>
-          <div className="print:hidden space-y-3 border border-steel-300 bg-white p-3"><h2 className="font-semibold">My selection</h2><AddToBom productId={p.id} /><CompareToggle id={p.id} /></div>
+          <div className="print:hidden space-y-3 border border-steel-300 bg-white p-3"><h2 className="font-semibold">My selection</h2><AddToBom productId={p.id} /><AddToRfqButton id={p.id} code={p.product_code} name={p.name} /><CompareToggle id={p.id} /></div>
           <section aria-labelledby="dc"><h2 id="dc" className="font-semibold mb-1">Documents</h2>
             {(() => {
               const all = [...p.technical_documents, ...catDocs.filter((c) => !p.technical_documents.some((d) => d.id === c.id))]

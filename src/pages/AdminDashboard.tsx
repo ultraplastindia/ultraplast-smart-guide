@@ -26,6 +26,7 @@ export default function AdminDashboard() {
         ['Products', count('products')], ['Drafts awaiting review', count('products', ['status', 'draft'])],
         ['Categories', count('product_categories')], ['Technical documents', count('technical_documents')],
       ]
+      if (can('manage_rfq')) list.unshift(['New quotation requests', count('rfq_requests', ['status', 'new'])])
       if (users) list.unshift(['Registered users', count('profiles')], ['Pending requests', count('profiles', ['access_status', 'pending_approval'])],
         ['Approved users', count('profiles', ['access_status', 'approved'])], ['Suspended users', count('profiles', ['access_status', 'suspended'])])
       const done = await Promise.all(list.map(async ([l, p]) => [l, await p] as [string, number | null]))
@@ -53,7 +54,9 @@ export default function AdminDashboard() {
       { to: '/documents', title: 'Documents', text: 'CAD files, datasheets and drawings.', perm: 'upload_documents' },
       { to: '/admin/page-images', title: 'Catalogue page images', text: 'Upload page pictures (page-0001.jpg and so on) shown on product pages.', perm: 'manage_imports' },
       { to: '/admin/files', title: 'Catalogue PDF files', text: 'Store the full catalogue PDFs privately.', perm: 'manage_imports' }] },
-    { group: 'Sharing', items: [{ to: '/admin/share', title: 'Customer links', text: 'See, copy and withdraw links shared with customers.', perm: 'create_share_links' }] },
+    { group: 'Sharing', items: [
+      { to: '/admin/share', title: 'Customer links', text: 'See, copy and withdraw links shared with customers.', perm: 'create_share_links' },
+      { to: '/admin/rfq', title: 'Quotation requests', text: 'Requests sent from the Smart Guide quotation list.', perm: 'manage_rfq' }] },
     { group: 'People', items: [{ to: '/admin/access', title: 'User access', text: 'Approve people, set roles, suspend accounts.', perm: 'manage_users' }] },
   ]
   return (

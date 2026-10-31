@@ -5,6 +5,7 @@ import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import { AuthProvider } from './lib/auth'
 import { CompareProvider } from './lib/compare'
+import { RfqProvider } from './lib/rfq'
 import { isConfigured } from './lib/supabase'
 import './index.css'
 
@@ -32,7 +33,9 @@ createRoot(document.getElementById('root')!).render(
         <BrowserRouter>
           <AuthProvider>
             <CompareProvider>
-              <App />
+              <RfqProvider>
+                <App />
+              </RfqProvider>
             </CompareProvider>
           </AuthProvider>
         </BrowserRouter>
