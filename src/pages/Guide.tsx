@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, CircleHelp, FileDown, LayoutGrid, Link2, Lis
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { listCategories } from '../lib/catalogue'
-import { buildPages, findPage, guideUrl, pageIndexByCode, type GuideCat, type GuidePage, type GuideProd } from '../lib/format'
+import { buildPages, categoryCode, findPage, guideUrl, pageIndexByCode, type GuideCat, type GuidePage, type GuideProd } from '../lib/format'
 import { LOGO_DATA_URL } from '../lib/logo'
 import { exportCategoryPdf, exportProductPdf } from '../lib/sharePdf'
 import { useRfq } from '../lib/rfq'
@@ -34,67 +34,129 @@ async function thumbsFor(ids: string[]): Promise<Map<string, string>> {
   return out
 }
 
-/** The white "page" with the colour strip, page code, title and logo. */
-function Sheet({ code, title, cats, currentCatId, onOpenCat, children }: { code: string; title: string; cats: GuideCat[]; currentCatId?: string; onOpenCat: (id: string) => void; children: ReactNode }) {
+/** Each character of a page code in its own box, like the printed page codes. Long codes stay a single label. */
+function CodeBoxes({ code, big }: { code: string; big?: boolean }) {
+  if (code.length > 8) return <span className="font-mono text-sm font-bold bg-steel-950 text-white px-3 py-1 tracking-wider">{code}</span>
   return (
-    <div className="mx-auto w-full max-w-5xl bg-white shadow-xl border border-steel-300 print:shadow-none">
-      <div className="flex h-5 print:hidden" aria-label="Sections">
-        {cats.map((c, i) => (
-          <button key={c.id} title={c.name} aria-label={`Open ${c.name}`} onClick={() => onOpenCat(c.id)} className="flex-1 min-w-0 hover:opacity-100 focus-visible:opacity-100" style={{ background: color(i), opacity: c.id === currentCatId ? 1 : 0.45 }} />))}
+    <span className="inline-flex gap-1" aria-label={`Page code ${code}`}>
+      {[...code].map((ch, i) => <span key={i} aria-hidden="true" className={`inline-grid place-items-center border-2 border-steel-950 bg-white font-mono font-bold ${big ? 'w-8 h-10 text-xl' : 'w-5 h-6 text-xs'}`}>{ch}</span>)}
+    </span>
+  )
+}
+
+/** The white "page": a grid of clickable tabs, the page code, a title bar and the logo. */
+function Sheet({ code, title, cats, currentCatId, onOpenCat, onOpenIndex, narrow, children }: {
+  code: string; title: string; cats: GuideCat[]; currentCatId?: string; onOpenCat: (id: string) => void; onOpenIndex: () => void; narrow?: boolean; children: ReactNode
+}) {
+  return (
+    <div className={`mx-auto w-full ${narrow ? 'max-w-3xl' : 'max-w-5xl'} bg-white shadow-xl border border-steel-300 print:shadow-none`}>
+      <div className="px-3 pt-3">
+        <div role="navigation" aria-label="Sections" className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-px bg-steel-300 border border-steel-300 print:hidden">
+          <div className="bg-white"><button onClick={onOpenIndex} className={`w-full h-9 text-left px-2 border-l-4 border-steel-950 text-[10px] sm:text-[11px] leading-tight font-bold ${code === 'INDEX' ? 'bg-steel-950 text-white' : 'bg-steel-100 text-steel-950 hover:brightness-95'}`}>INDEX</button></div>
+          {cats.map((c, i) => {
+            const active = c.id === currentCatId
+            return (
+              <div key={c.id} className="bg-white">
+                <button title={c.name} onClick={() => onOpenCat(c.id)} aria-current={active} style={{ borderLeftColor: color(i), background: active ? color(i) : `${color(i)}22` }}
+                  className={`w-full h-9 text-left px-2 border-l-4 text-[10px] sm:text-[11px] leading-tight font-semibold overflow-hidden ${active ? 'text-white' : 'text-steel-950 hover:brightness-95'}`}>{c.name}</button>
+              </div>)
+          })}
+        </div>
       </div>
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-steel-300">
-        <span className="font-mono text-base sm:text-lg font-bold bg-steel-950 text-white px-3 py-1 tracking-widest">{code}</span>
-        <h1 className="flex-1 min-w-0 text-base sm:text-xl font-bold uppercase tracking-wide truncate bg-steel-100 px-3 py-1">{title}</h1>
-        <img src={LOGO_DATA_URL} alt="Ultraplast" className="h-8 w-auto hidden sm:block" />
+      <div className="flex items-end gap-3 px-3 py-3 border-b border-steel-300">
+        <div className="shrink-0"><CodeBoxes code={code} big /><a href="https://www.ultraplastindia.com/" target="_blank" rel="noopener noreferrer" className="block text-[10px] text-brand-green underline mt-0.5 print:hidden">www.ultraplastindia.com</a></div>
+        <div className="flex-1 min-w-0 bg-steel-100 border-y-2 border-steel-300 px-3 py-1"><h1 className="text-right text-base sm:text-xl font-bold uppercase tracking-wide truncate">{title}</h1></div>
+        <img src={LOGO_DATA_URL} alt="Ultraplast" className="h-8 w-auto hidden sm:block shrink-0" />
       </div>
       <div className="p-4 sm:p-6">{children}</div>
     </div>
   )
 }
 
-/** General index: an original conveyor drawing with a clickable bubble for every category. */
+// Original isometric conveyor (an arch: one belt rising to the right, then turning down to the right).
+const KS = 0.95, CK = 0.866 * KS, SK = 0.5 * KS
+const LA = 300, LB = 250, WD = 66, ZT = 74, ZB = 58
+const raw = (x: number, y: number, z: number): [number, number] => [(x + y) * CK, (y - x) * SK - z]
+const BOX = (() => {
+  const p = [0, LA].flatMap((x) => [0, LB].flatMap((y) => [0, ZT + 14].map((z) => raw(x, y, z))))
+  const xs = p.map((q) => q[0]), ys = p.map((q) => q[1])
+  return { cx: (Math.min(...xs) + Math.max(...xs)) / 2, cy: (Math.min(...ys) + Math.max(...ys)) / 2 }
+})()
+const P3 = (x: number, y: number, z: number): [number, number] => { const [a, b] = raw(x, y, z); return [350 - BOX.cx + a, 495 - BOX.cy + b] }
+const poly = (list: [number, number, number][]) => list.map(([x, y, z]) => P3(x, y, z).map((v) => v.toFixed(1)).join(',')).join(' ')
+const wrapName = (name: string, n = 14): string[] => {
+  const lines: string[] = ['']
+  for (const w of name.split(/\s+/)) {
+    const cand = `${lines[lines.length - 1]} ${w}`.trim()
+    if (cand.length > n && lines[lines.length - 1]) lines.push(w); else lines[lines.length - 1] = cand
+  }
+  const out = lines.slice(0, 2)
+  if (lines.length > 2 || (out[1] && out[1].length > n)) out[1] = `${out[1].slice(0, n - 1)}…`
+  if (out[0].length > n + 4) out[0] = `${out[0].slice(0, n + 3)}…`
+  return out
+}
+function CodeSvg({ code, x, y }: { code: string; x: number; y: number }) {
+  const w = 12, gap = 2, total = code.length * (w + gap) - gap
+  return (
+    <g aria-hidden="true">{[...code].map((ch, i) => (
+      <g key={i}><rect x={x - total / 2 + i * (w + gap)} y={y} width={w} height={16} fill="#f4f6f7" stroke="#4a5b69" strokeWidth="1.2" />
+        <text x={x - total / 2 + i * (w + gap) + w / 2} y={y + 12} textAnchor="middle" fontSize="10" fontWeight="700" fontFamily="monospace" className="fill-steel-950">{ch}</text></g>))}</g>
+  )
+}
+
+/** General index: bubbles around an original conveyor. Bubble, name, code box, line and dot all open the category. */
 function IndexPage({ cats, thumbs, open }: { cats: GuideCat[]; thumbs: Map<string, string>; open: (id: string) => void }) {
   if (cats.length === 0) return <p className="text-steel-600">No categories yet. An administrator can add them under Admin, Categories.</p>
-  const top = cats.filter((_, i) => i % 2 === 0)
-  const bottom = cats.filter((_, i) => i % 2 === 1)
-  const r = Math.max(18, Math.min(40, 600 / Math.max(top.length, 1) / 2 - 6))
-  const slot = (n: number, i: number) => 50 + (600 / n) * (i + 0.5)
-  const midY = (x: number) => 438 - (x - 130) * (120 / 460)       // centre line of the belt
-  const frontY = (x: number) => 476 - (x - 160) * (120 / 460)     // bottom edge of the front face
-  const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v))
-  const trunc = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
-  const max = r >= 30 ? 20 : 13
-  const A = [100, 420], B = [560, 300], C = [620, 336], D = [160, 456]
-  const lerp = (p: number[], q: number[], t: number) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]
-  const pt = (p: number[]) => `${p[0]},${p[1]}`
-  const bubble = (c: GuideCat, x: number, y: number, anchorX: number, anchorY: number, fromY: number) => {
-    const i = cats.indexOf(c); const col = color(i); const t = thumbs.get(c.id)
+  const nT = Math.ceil(cats.length / 2)
+  const top = cats.slice(0, nT)
+  const bottom = cats.slice(nT)
+  const rOf = (n: number) => Math.max(22, Math.min(44, 560 / Math.max(n, 1) / 2 - 10))
+  const arcTop = (x: number) => 170 + 90 * ((x - 350) / 280) ** 2
+  const arcBot = (x: number) => 780 - 70 * (1 - ((x - 350) / 280) ** 2)
+  const topAnchor = (t: number): [number, number] => { const l1 = LA - WD / 2, l2 = LB - WD / 2; const u = t * (l1 + l2); return u <= l1 ? [u, WD / 2] : [LA - WD / 2, WD / 2 + (u - l1)] }
+  const frontAnchor = (t: number): [number, number] => { const l1 = LA - WD, l2 = LB - WD; const u = t * (l1 + l2); return u <= l1 ? [u, WD] : [LA - WD, WD + (u - l1)] }
+
+  const bubble = (c: GuideCat, x: number, y: number, r: number, isTop: boolean, anchorT: number) => {
+    const gi = cats.indexOf(c); const col = color(gi); const img = thumbs.get(c.id)
+    const lines = wrapName(c.name); const labelY = y + r + 14; const codeY = labelY + lines.length * 12 + 2
+    const [ax, ay] = isTop ? P3(...topAnchor(anchorT), ZT) : P3(...frontAnchor(anchorT), 30)
+    const lineFrom = isTop ? codeY + 18 : y - r
     return (
-      <g key={c.id} role="link" tabIndex={0} aria-label={`Open ${c.name}`} className="cursor-pointer outline-none group" onClick={() => open(c.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(c.id) } }}>
+      <g key={c.id} role="link" tabIndex={0} aria-label={`Open ${c.name}, page ${categoryCode(gi)}`} className="cursor-pointer outline-none group" onClick={() => open(c.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(c.id) } }}>
         <title>{c.name}</title>
-        <line x1={x} y1={fromY} x2={anchorX} y2={anchorY} stroke={col} strokeWidth="1.5" />
-        <circle cx={anchorX} cy={anchorY} r="3.5" fill={col} />
+        <line x1={x} y1={lineFrom} x2={ax} y2={ay} stroke={col} strokeWidth="2" />
+        <circle cx={ax} cy={ay} r="4" fill={col} />
         <clipPath id={`cp-${c.id}`}><circle cx={x} cy={y} r={r - 3} /></clipPath>
         <circle cx={x} cy={y} r={r} fill="#fff" stroke={col} strokeWidth="4" className="group-hover:stroke-[7px] group-focus-visible:stroke-[7px]" />
-        {t ? <image href={t} x={x - r} y={y - r} width={r * 2} height={r * 2} clipPath={`url(#cp-${c.id})`} preserveAspectRatio="xMidYMid slice" />
-          : <text x={x} y={y + 6} textAnchor="middle" fontSize={r * 0.7} fontWeight="700" fill={col}>{c.name.slice(0, 1).toUpperCase()}</text>}
-        <text x={x} y={y + r + 15} textAnchor="middle" fontSize="11" fontWeight="700" className="fill-steel-950 group-hover:fill-brand-green">{trunc(c.name, max)}</text>
-        <text x={x} y={y + r + 28} textAnchor="middle" fontSize="10" className="fill-steel-600" fontFamily="monospace">{`C${String(i + 1).padStart(2, '0')}`}</text>
+        {img ? <image href={img} x={x - r} y={y - r} width={r * 2} height={r * 2} clipPath={`url(#cp-${c.id})`} preserveAspectRatio="xMidYMid slice" />
+          : <text x={x} y={y + r * 0.25} textAnchor="middle" fontSize={r * 0.8} fontWeight="700" fill={col}>{c.name.slice(0, 1).toUpperCase()}</text>}
+        {lines.map((l, i) => <text key={i} x={x} y={labelY + i * 12} textAnchor="middle" fontSize="11" fontWeight="700" className="fill-steel-950 group-hover:fill-brand-green">{l}</text>)}
+        <CodeSvg code={categoryCode(gi)} x={x} y={codeY} />
       </g>
     )
   }
+
+  const legs: [number, number][] = [[40, WD], [160, WD], [LA - WD, WD + 60], [LA - WD, WD + 150], [LA - WD, LB - 20]]
   return (
-    <svg viewBox="0 0 700 720" role="group" aria-label="General index: choose a category" className="w-full h-auto">
-      {[200, 380, 560].map((lx) => (<g key={lx}><line x1={lx} y1={frontY(lx)} x2={lx} y2={frontY(lx) + 95} stroke="#8a98a5" strokeWidth="8" /><ellipse cx={lx} cy={frontY(lx) + 97} rx="24" ry="7" fill="#27343f" /></g>))}
-      <polygon points={`${pt(A)} ${pt([A[0], A[1] + 20])} ${pt([D[0], D[1] + 20])} ${pt(D)}`} fill="#1b2530" />
-      <polygon points={`${pt(D)} ${pt(C)} ${pt([C[0], C[1] + 20])} ${pt([D[0], D[1] + 20])}`} fill="#27343f" />
-      <polygon points={`${pt(A)} ${pt(B)} ${pt(C)} ${pt(D)}`} fill="#1d5a78" />
-      {Array.from({ length: 26 }, (_, k) => { const s = (k + 1) / 27; const a = lerp(A, B, s), b = lerp(D, C, s); return <line key={k} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#2f7da3" strokeWidth="1" /> })}
-      <polygon points={`${pt(A)} ${pt(B)} ${pt([B[0], B[1] - 10])} ${pt([A[0], A[1] - 10])}`} fill="#b9c3cb" />
-      <polygon points={`${pt(D)} ${pt(C)} ${pt([C[0], C[1] - 12])} ${pt([D[0], D[1] - 12])}`} fill="#e8ecef" stroke="#b9c3cb" />
-      <text x="350" y="90" textAnchor="middle" fontSize="13" className="fill-steel-600">Select a bubble to open a category. Use the arrows or the page code box above to turn pages.</text>
-      {top.map((c, i) => { const x = slot(top.length, i); const ax = clamp(x, 170, 560); return bubble(c, x, 160, ax, midY(ax), 160 + r + 36) })}
-      {bottom.map((c, i) => { const x = slot(bottom.length, i); const ax = clamp(x, 200, 560); return bubble(c, x, 640, ax, frontY(ax) + 30, 640 - r) })}
+    <svg viewBox="0 0 700 900" role="group" aria-label="General index: choose a category" className="w-full h-auto">
+      <rect x="24" y="20" width="230" height="64" rx="8" fill="none" stroke="#b9c3cb" />
+      <text x="38" y="44" fontSize="12" fontWeight="600" className="fill-steel-600">Select a bubble, a tab or a page</text>
+      <text x="38" y="62" fontSize="12" fontWeight="600" className="fill-steel-600">code to open that category.</text>
+      {legs.map(([x, y], i) => { const a = P3(x, y, 0), b = P3(x, y, ZB); return (<g key={i}><line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#8a98a5" strokeWidth="7" /><ellipse cx={a[0]} cy={a[1]} rx="14" ry="4" fill="#27343f" /></g>) })}
+      <polygon points={poly([[0, WD, ZB], [LA - WD, WD, ZB], [LA - WD, WD, ZT], [0, WD, ZT]])} fill="#27343f" />
+      <polygon points={poly([[0, 0, ZB], [0, WD, ZB], [0, WD, ZT], [0, 0, ZT]])} fill="#1b2530" />
+      <polygon points={poly([[LA - WD, WD, ZB], [LA - WD, LB, ZB], [LA - WD, LB, ZT], [LA - WD, WD, ZT]])} fill="#27343f" />
+      <polygon points={poly([[LA - WD, LB, ZB], [LA, LB, ZB], [LA, LB, ZT], [LA - WD, LB, ZT]])} fill="#1b2530" />
+      <polygon points={poly([[0, 0, ZT], [LA, 0, ZT], [LA, WD, ZT], [0, WD, ZT]])} fill="#1d5a78" />
+      <polygon points={poly([[LA - WD, 0, ZT], [LA, 0, ZT], [LA, LB, ZT], [LA - WD, LB, ZT]])} fill="#1d5a78" />
+      {Array.from({ length: 23 }, (_, i) => { const x = ((i + 1) * (LA - WD)) / 24; const a = P3(x, 0, ZT), b = P3(x, WD, ZT); return <line key={`a${i}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#2f7da3" strokeWidth="1" /> })}
+      {Array.from({ length: 17 }, (_, i) => { const y = WD + ((i + 1) * (LB - WD)) / 18; const a = P3(LA - WD, y, ZT), b = P3(LA, y, ZT); return <line key={`b${i}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#2f7da3" strokeWidth="1" /> })}
+      <polygon points={poly([[0, 0, ZT], [LA, 0, ZT], [LA, 0, ZT + 14], [0, 0, ZT + 14]])} fill="#b9c3cb" stroke="#8a98a5" />
+      <polygon points={poly([[LA, 0, ZT], [LA, LB, ZT], [LA, LB, ZT + 14], [LA, 0, ZT + 14]])} fill="#b9c3cb" stroke="#8a98a5" />
+      <polygon points={poly([[0, WD, ZT], [LA - WD, WD, ZT], [LA - WD, WD, ZT + 14], [0, WD, ZT + 14]])} fill="#e8ecef" stroke="#8a98a5" />
+      <polygon points={poly([[LA - WD, WD, ZT], [LA - WD, LB, ZT], [LA - WD, LB, ZT + 14], [LA - WD, WD, ZT + 14]])} fill="#e8ecef" stroke="#8a98a5" />
+      {top.map((c, i) => { const step = 560 / top.length; const x = 70 + step * (i + 0.5); return bubble(c, x, arcTop(x), rOf(top.length), true, (i + 0.5) / top.length) })}
+      {bottom.map((c, i) => { const step = 560 / bottom.length; const x = 70 + step * (i + 0.5); return bubble(c, x, arcBot(x), rOf(bottom.length), false, (i + 0.5) / bottom.length) })}
     </svg>
   )
 }
@@ -330,6 +392,7 @@ export default function Guide() {
                 <li><b>Search:</b> type a code or name and pick a result.</li><li><b>List icon:</b> contents of every category and product.</li><li><b>Grid icon:</b> thumbnails of all pages.</li>
                 <li><b>Arrows or page code box:</b> turn pages, or type INDEX, a category code like C01, or a product code and press Enter. The keyboard arrows also turn pages.</li>
                 <li><b>PDF and printer icons:</b> download or print the page you are on.</li><li><b>Link icon:</b> copy a link to the page or a public customer link.</li>
+                <li><b>Page order and codes:</b> the book runs INDEX, then each category (C01, C02 ...) followed by its products. Codes follow the category order set by an administrator.</li><li><b>Search tips:</b> type part of a code (punctuation is ignored) or a few words from the name or specification.</li>
                 <li><b>Request for quotation:</b> add products with Add to quotation, then send the list to Ultraplast.</li><li><b>Click an image</b> on a product page to zoom in or out.</li>
               </ul>
               <p><Link className="underline" to="/help">Open the full Help page</Link></p>
@@ -349,7 +412,7 @@ export default function Guide() {
 
         <div ref={scroll} className="flex-1 overflow-y-auto p-3 sm:p-6 lg:px-14 print:overflow-visible print:p-0">
           {cur && (
-            <Sheet code={cur.code} title={cur.title} cats={catList} currentCatId={currentCatId} onOpenCat={openCat}>
+            <Sheet code={cur.code} title={cur.title} cats={catList} currentCatId={currentCatId} onOpenCat={openCat} onOpenIndex={() => go(0)} narrow={cur.kind === 'index'}>
               {cur.kind === 'index' && <IndexPage cats={cats} thumbs={catThumbs} open={openCat} />}
               {cur.kind === 'category' && <CategoryPage cat={{ id: cur.id, name: cur.title }} prods={prodMap} pages={pages} onOpen={openProd} thumbsVersion={0} />}
               {cur.kind === 'product' && <ProductDetail />}
