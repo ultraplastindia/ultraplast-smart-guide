@@ -20,8 +20,11 @@ interface Detail {
 
 const STATUS: Record<string, string> = { verified: 'Verified', needs_review: 'Needs review', unverified: 'Not yet verified' }
 
+interface Field { label: string; value: string; to?: string; hint?: string }
+const LINK = 'underline decoration-dotted underline-offset-2 hover:text-brand-green'
+
 export default function ProductDetail() {
-  const { id } = useParams()
+  const { id, kind } = useParams()
   const [p, setP] = useState<Detail | null>(null)
   const [related, setRelated] = useState<{ id: string; product_code: string; name: string }[]>([])
   const [err, setErr] = useState('')
@@ -64,21 +67,31 @@ export default function ProductDetail() {
   if (err) return <p role="alert" className="text-red-700">{err} <Link className="underline" to="/catalogue">Back to catalogue</Link></p>
   if (!p) return <p role="status" className="text-steel-600">Loading product…</p>
 
+  const inGuide = Boolean(kind)
+  const toProd = (pid: string) => (inGuide ? `/guide/p/${pid}` : `/products/${pid}`)
+  const toCat = (cid: string) => (inGuide ? `/guide/c/${cid}` : `/catalogue?category=${cid}`)
+  const find = (qs: string) => `/catalogue?${qs}`
+  const enc = encodeURIComponent
   const mm = (v: number | null) => (v === null ? show(null) : `${v} mm`)
   const catNames = show((p.product_category_links ?? []).map((l) => l.product_categories?.name).filter(Boolean).join(', ') || p.product_categories?.name)
-  const fields: [string, string][] = [
-    ['Product code', p.product_code], ['Categories', catNames], ['Brand', show(p.brand)],
-    ['Material', show(p.material)], ['Pitch', mm(p.pitch_mm)], ['Width', mm(p.width_mm)], ['Thickness', mm(p.thickness_mm)],
-    ['Colour', show(p.colour)], ['Application', show(p.application)],
-    ['Catalogue', p.catalogues ? `${p.catalogues.name}${p.catalogues.edition ? ` (${p.catalogues.edition})` : ''}` : show(null)],
-    ['Catalogue page', show(p.source_page)], ['Drawing reference', show(p.drawing_ref)],
+  const fields: Field[] = [
+    { label: 'Product code', value: p.product_code }, { label: 'Categories', value: catNames },
+    { label: 'Brand', value: show(p.brand), to: p.brand ? find(`brand=${enc(p.brand)}`) : undefined, hint: 'See all products of this brand' },
+    { label: 'Material', value: show(p.material), to: p.material ? find(`material=${enc(p.material)}`) : undefined, hint: 'See all products in this material' },
+    { label: 'Pitch', value: mm(p.pitch_mm), to: p.pitch_mm !== null ? find(`pitch=${p.pitch_mm}`) : undefined, hint: 'See all products with this pitch' },
+    { label: 'Width', value: mm(p.width_mm), to: p.width_mm !== null ? find(`width=${p.width_mm}`) : undefined, hint: 'See all products with this width' },
+    { label: 'Thickness', value: mm(p.thickness_mm), to: p.thickness_mm !== null ? find(`thickness=${p.thickness_mm}`) : undefined, hint: 'See all products with this thickness' },
+    { label: 'Colour', value: show(p.colour), to: p.colour ? find(`q=${enc(p.colour)}`) : undefined, hint: 'Search for this colour' },
+    { label: 'Application', value: show(p.application), to: p.application ? find(`q=${enc(p.application)}`) : undefined, hint: 'Search for this application' },
+    { label: 'Catalogue', value: p.catalogues ? `${p.catalogues.name}${p.catalogues.edition ? ` (${p.catalogues.edition})` : ''}` : show(null) },
+    { label: 'Catalogue page', value: show(p.source_page) }, { label: 'Drawing reference', value: show(p.drawing_ref) },
   ]
   const verified = p.verification_status === 'verified'
   const galleryImages = [...images.map((i) => ({ url: i.url, caption: i.caption })), ...(preview ? [{ url: preview, caption: `Catalogue page ${p.source_page}` }] : [])]
   return (
     <article className="space-y-5">
       <nav aria-label="Breadcrumb" className="text-sm text-steel-600">
-        <Link className="underline" to="/catalogue">Catalogue</Link> / {p.category_id ? <Link className="underline" to={`/catalogue?category=${p.category_id}`}>{show(p.product_categories?.name)}</Link> : 'Uncategorised'} / <span>{p.product_code}</span>
+        <Link className="underline" to={inGuide ? '/guide' : '/catalogue'}>{inGuide ? 'Guide index' : 'Catalogue'}</Link> / {p.category_id ? <Link className="underline" to={toCat(p.category_id)}>{show(p.product_categories?.name)}</Link> : 'Uncategorised'} / <span>{p.product_code}</span>
       </nav>
       <header className="border-b border-steel-300 pb-3"><h1 className="text-2xl font-bold">{p.name}</h1><p className="font-mono text-steel-600">{p.product_code}</p></header>
 
@@ -93,13 +106,18 @@ export default function ProductDetail() {
           <p>{show(p.description)}</p>
           <section aria-labelledby="td"><h2 id="td" className="font-semibold mb-2">Technical data</h2>
             <dl className="grid sm:grid-cols-2 gap-px bg-steel-300 border border-steel-300">
-              {fields.map(([k, v]) => <div key={k} className="bg-white px-3 py-2"><dt className="text-xs text-steel-600">{k}</dt><dd>{v}</dd></div>)}
+              {fields.map((f) => (
+                <div key={f.label} className="bg-white px-3 py-2"><dt className="text-xs text-steel-600">{f.label}</dt>
+                  <dd>{f.label === 'Categories' && p.product_category_links.length > 0
+                    ? p.product_category_links.map((l, i) => <span key={l.category_id}>{i > 0 ? ', ' : ''}<Link className={LINK} to={toCat(l.category_id)} title="Open this catalogue">{l.product_categories?.name ?? show(null)}</Link></span>)
+                    : f.to ? <Link className={LINK} to={f.to} title={f.hint}>{f.value}</Link> : f.value}</dd></div>))}
             </dl>
+            <p className="mt-1 text-xs text-steel-600 print:hidden">Click an underlined value to see every product with it.</p>
           </section>
           <section aria-labelledby="sp"><h2 id="sp" className="font-semibold mb-2">Specifications</h2>
             {p.product_specifications.length === 0 ? <p className="text-steel-600">{show(null)}</p> : (
               <table className="w-full text-sm border border-steel-300 bg-white"><tbody>
-                {p.product_specifications.map((s) => <tr key={s.spec_key} className="border-t border-steel-300"><th scope="row" className="text-left px-3 py-2 font-medium">{s.spec_key}</th><td className="px-3 py-2">{s.spec_value}{s.unit ? ` ${s.unit}` : ''}</td><td className="px-3 py-2 text-steel-600">{s.source_page ? `p. ${s.source_page}` : ''}</td></tr>)}
+                {p.product_specifications.map((s) => <tr key={s.spec_key} className="border-t border-steel-300"><th scope="row" className="text-left px-3 py-2 font-medium">{s.spec_key}</th><td className="px-3 py-2"><Link className={LINK} to={find(`q=${enc(s.spec_value)}`)} title="See all products with this value">{s.spec_value}{s.unit ? ` ${s.unit}` : ''}</Link></td><td className="px-3 py-2 text-steel-600">{s.source_page ? `p. ${s.source_page}` : ''}</td></tr>)}
               </tbody></table>)}
           </section>
         </div>
@@ -118,8 +136,13 @@ export default function ProductDetail() {
             })()}
             <p className="mt-1 text-xs"><Link className="underline" to={`/documents?q=${encodeURIComponent(p.product_code)}`}>All documents for this product</Link></p>
           </section>
-          <section aria-labelledby="rl"><h2 id="rl" className="font-semibold mb-1">Related products</h2>
-            {related.length === 0 ? <p className="text-sm text-steel-600">{show(null)}</p> : <ul className="text-sm">{related.map((r) => <li key={r.id}><Link className="underline" to={`/products/${r.id}`}>{r.product_code} — {r.name}</Link></li>)}</ul>}
+          <section aria-labelledby="rl"><h2 id="rl" className="font-semibold mb-1">Related products (go to)</h2>
+            {related.length === 0 ? <p className="text-sm text-steel-600">{show(null)}</p> : (
+              <ul className="text-sm space-y-1">{related.map((r) => <li key={r.id}><Link className="flex items-center gap-2 hover:text-brand-green" to={toProd(r.id)}><span className="font-mono text-xs border-2 border-steel-950 bg-white px-1.5 py-0.5">{r.product_code}</span><span className="truncate">{r.name}</span></Link></li>)}</ul>)}
+          </section>
+          <section aria-labelledby="rc"><h2 id="rc" className="font-semibold mb-1">Related catalogues (go to)</h2>
+            {p.product_category_links.length === 0 ? <p className="text-sm text-steel-600">{show(null)}</p> : (
+              <ul className="text-sm space-y-1">{p.product_category_links.map((l) => <li key={l.category_id}><Link className="underline hover:text-brand-green" to={toCat(l.category_id)}>{l.product_categories?.name ?? show(null)}</Link></li>)}</ul>)}
           </section>
         </aside>
       </div>

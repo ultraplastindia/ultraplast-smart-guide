@@ -6,8 +6,9 @@ export function show(v: string | number | null | undefined): string {
   return v === null || v === undefined || String(v).trim() === '' ? NA : String(v)
 }
 
+const NUM = /^\d+(\.\d+)?$/
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-export interface CatalogueParams { q: string; category: string; brand: string; material: string; sort: Sort; page: number }
+export interface CatalogueParams { q: string; category: string; brand: string; material: string; sort: Sort; page: number; pitch: string; width: string; thickness: string }
 
 export function parseParams(sp: URLSearchParams): CatalogueParams {
   const sort = sp.get('sort')
@@ -20,6 +21,9 @@ export function parseParams(sp: URLSearchParams): CatalogueParams {
     material: sp.get('material') ?? '',
     sort: sort === 'code' || sort === 'category' ? sort : 'name',
     page: Number.isFinite(page) && page > 0 ? page : 1,
+    pitch: NUM.test(sp.get('pitch') ?? '') ? (sp.get('pitch') as string) : '',
+    width: NUM.test(sp.get('width') ?? '') ? (sp.get('width') as string) : '',
+    thickness: NUM.test(sp.get('thickness') ?? '') ? (sp.get('thickness') as string) : '',
   }
 }
 
@@ -27,6 +31,8 @@ export function toRpcArgs(p: CatalogueParams) {
   return {
     p_q: p.q.trim() || null, p_category: p.category || null, p_brand: p.brand || null,
     p_material: p.material || null, p_sort: p.sort, p_limit: PAGE_SIZE, p_offset: (p.page - 1) * PAGE_SIZE,
+    // sent only when set, so searching still works before the 0011 database script is applied
+    ...(p.pitch ? { p_pitch: Number(p.pitch) } : {}), ...(p.width ? { p_width: Number(p.width) } : {}), ...(p.thickness ? { p_thickness: Number(p.thickness) } : {}),
   }
 }
 

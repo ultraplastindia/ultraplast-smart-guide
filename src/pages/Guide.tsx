@@ -161,14 +161,21 @@ function IndexPage({ cats, thumbs, open }: { cats: GuideCat[]; thumbs: Map<strin
   )
 }
 
+interface GuideDetail { id: string; brand: string | null; material: string | null; pitch_mm: number | null; width_mm: number | null; thickness_mm: number | null }
+const CELL_LINK = 'underline decoration-dotted underline-offset-2 hover:text-brand-green'
+
 function CategoryPage({ cat, prods, pages, onOpen, thumbsVersion }: { cat: GuideCat; prods: Map<string, GuideProd>; pages: GuidePage[]; onOpen: (id: string) => void; thumbsVersion: number }) {
+  const rfq = useRfq()
   const [ids, setIds] = useState<string[] | null>(null)
   const [shown, setShown] = useState(60)
   const [thumbs, setThumbs] = useState<Map<string, string>>(new Map())
+  const [view, setView] = useState<'cards' | 'table'>('cards')
+  const [details, setDetails] = useState<Map<string, GuideDetail>>(new Map())
+  const [related, setRelated] = useState<{ id: string; name: string; code: string; n: number }[]>([])
 
   useEffect(() => {
     let live = true
-    setIds(null); setShown(60)
+    setIds(null); setShown(60); setDetails(new Map()); setRelated([])
     ;(async () => {
       if (cat.id === 'other') { if (live) setIds(pages.filter((p) => p.kind === 'product' && p.categoryId === 'other').map((p) => p.id)); return }
       const { data } = await supabase.from('product_category_links').select('product_id').eq('category_id', cat.id).range(0, 999)
@@ -186,19 +193,96 @@ function CategoryPage({ cat, prods, pages, onOpen, thumbsVersion }: { cat: Guide
     return () => { live = false }
   }, [ids, shown, thumbsVersion])
 
+  // values for the table view (material, pitch, width, thickness)
+  useEffect(() => {
+    if (view !== 'table' || !ids) return
+    let live = true
+    ;(async () => {
+      const m = new Map<string, GuideDetail>()
+      for (let i = 0; i < ids.length; i += 100) {
+        const { data } = await supabase.from('products').select('id,brand,material,pitch_mm,width_mm,thickness_mm').in('id', ids.slice(i, i + 100))
+        for (const r of (data ?? []) as GuideDetail[]) m.set(r.id, r)
+      }
+      if (live) setDetails(m)
+    })()
+    return () => { live = false }
+  }, [view, ids])
+
+  // related catalogues: other categories that share products with this one
+  useEffect(() => {
+    if (!ids || ids.length === 0 || cat.id === 'other') return
+    let live = true
+    ;(async () => {
+      const counts = new Map<string, number>()
+      for (let i = 0; i < ids.length; i += 100) {
+        const { data } = await supabase.from('product_category_links').select('category_id').in('product_id', ids.slice(i, i + 100)).neq('category_id', cat.id)
+        for (const r of (data ?? []) as { category_id: string }[]) counts.set(r.category_id, (counts.get(r.category_id) ?? 0) + 1)
+      }
+      const list = [...counts.entries()].flatMap(([cid, n]) => { const pg = pages.find((p) => p.kind === 'category' && p.id === cid); return pg ? [{ id: cid, name: pg.title, code: pg.code, n }] : [] })
+      if (live) setRelated(list.sort((a, b) => b.n - a.n).slice(0, 12))
+    })()
+    return () => { live = false }
+  }, [ids, cat.id, pages])
+
   if (ids === null) return <p role="status" className="text-steel-600">Loading…</p>
   if (ids.length === 0) return <p className="text-steel-600">No published products in this category yet.</p>
+  const tab = (v: 'cards' | 'table', label: string) => <button aria-pressed={view === v} onClick={() => setView(v)} className={`px-3 py-1 text-sm border border-steel-300 ${view === v ? 'bg-steel-950 text-white' : 'bg-white hover:bg-steel-100'}`}>{label}</button>
+  const filterCell = (v: string | number | null | undefined, qs: (x: string) => string) => (v === null || v === undefined || v === ''
+    ? <span className="text-steel-600">{details.size === 0 ? '…' : 'Not available'}</span>
+    : <Link className={CELL_LINK} to={`/catalogue?${qs(String(v))}`} title="See all products with this value" onClick={(e) => e.stopPropagation()}>{String(v)}</Link>)
+  const enc = encodeURIComponent
   return (
     <div className="space-y-4">
       {cat.id !== 'other' && <ShareBar kind="category" id={cat.id} name={cat.name} />}
-      <p className="text-sm text-steel-600">{ids.length} product{ids.length === 1 ? '' : 's'}</p>
-      <ul className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-        {ids.slice(0, shown).map((id) => { const p = prods.get(id)!; return (
-          <li key={id} className="flex flex-col border border-steel-300 rounded-md overflow-hidden bg-white hover:shadow-md transition">
-            <button onClick={() => onOpen(id)} className="text-left p-2 space-y-1 flex-1"><Frame src={thumbs.get(id)} alt={p.name} /><span className="block text-sm font-semibold leading-snug">{p.name}</span><span className="block text-xs font-mono text-steel-600">{p.code}</span></button>
-            <div className="px-2 pb-2"><AddToRfqButton id={id} code={p.code} name={p.name} /></div>
-          </li>) })}
-      </ul>
+
+      <section aria-label={`Index of ${cat.name}`} className="border border-steel-300 rounded-md overflow-hidden">
+        <h2 className="bg-steel-100 px-3 py-1.5 text-sm font-bold uppercase tracking-wide text-center">Index {cat.name} · go to:</h2>
+        <ul className="max-h-40 overflow-auto p-2 flex flex-wrap gap-1.5">
+          {ids.map((id) => { const p = prods.get(id)!; return <li key={id}><button onClick={() => onOpen(id)} title={p.name} className="border border-steel-300 bg-white hover:border-brand-green hover:text-brand-green rounded px-1.5 py-0.5 text-xs font-mono font-bold">{p.code}</button></li> })}
+        </ul>
+      </section>
+
+      {related.length > 0 && (
+        <section aria-label="Related catalogues" className="border border-steel-300 rounded-md overflow-hidden">
+          <h2 className="bg-steel-100 px-3 py-1.5 text-sm font-bold uppercase tracking-wide text-center">Related catalogues · go to:</h2>
+          <ul className="p-2 grid gap-2 sm:grid-cols-2">
+            {related.map((r) => <li key={r.id}><Link to={`/guide/c/${r.id}`} className="flex items-center gap-2 hover:text-brand-green text-sm"><CodeBoxes code={r.code} /><span className="font-medium">{r.name}</span><span className="text-xs text-steel-600">({r.n} shared)</span></Link></li>)}
+          </ul>
+        </section>)}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm text-steel-600 mr-auto">{ids.length} product{ids.length === 1 ? '' : 's'}</p>
+        <div className="flex" role="group" aria-label="View">{tab('cards', 'Cards')}{tab('table', 'Table')}</div>
+      </div>
+
+      {view === 'cards' ? (
+        <ul className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          {ids.slice(0, shown).map((id) => { const p = prods.get(id)!; return (
+            <li key={id} className="flex flex-col border border-steel-300 rounded-md overflow-hidden bg-white hover:shadow-md transition">
+              <button onClick={() => onOpen(id)} className="text-left p-2 space-y-1 flex-1"><Frame src={thumbs.get(id)} alt={p.name} /><span className="block text-sm font-semibold leading-snug">{p.name}</span><span className="block text-xs font-mono text-steel-600">{p.code}</span></button>
+              <div className="px-2 pb-2"><AddToRfqButton id={id} code={p.code} name={p.name} /></div>
+            </li>) })}
+        </ul>
+      ) : (
+        <div className="overflow-x-auto border border-steel-300 rounded-md">
+          <table className="w-full text-sm">
+            <thead className="bg-steel-100 text-left"><tr>{['Code', 'Name', 'Brand', 'Material', 'Pitch (mm)', 'Width (mm)', 'Thickness (mm)', ''].map((h, i) => <th key={i} className="px-3 py-2 whitespace-nowrap">{h}</th>)}</tr></thead>
+            <tbody>
+              {ids.slice(0, shown).map((id) => { const p = prods.get(id)!; const d = details.get(id); return (
+                <tr key={id} className="border-t border-steel-300 hover:bg-belt-100 cursor-pointer" onClick={() => onOpen(id)}>
+                  <td className="px-3 py-2 whitespace-nowrap"><Link to={`/guide/p/${id}`} className="font-mono font-bold hover:text-brand-green" onClick={(e) => e.stopPropagation()}>{p.code}</Link></td>
+                  <td className="px-3 py-2">{p.name}</td>
+                  <td className="px-3 py-2">{filterCell(d?.brand, (v) => `brand=${enc(v)}`)}</td>
+                  <td className="px-3 py-2">{filterCell(d?.material, (v) => `material=${enc(v)}`)}</td>
+                  <td className="px-3 py-2">{filterCell(d?.pitch_mm, (v) => `pitch=${v}`)}</td>
+                  <td className="px-3 py-2">{filterCell(d?.width_mm, (v) => `width=${v}`)}</td>
+                  <td className="px-3 py-2">{filterCell(d?.thickness_mm, (v) => `thickness=${v}`)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap"><button className="border border-brand-green text-brand-green px-2 py-1 text-xs hover:bg-brand-green hover:text-white" onClick={(e) => { e.stopPropagation(); rfq.add({ id, code: p.code, name: p.name }) }}>Add to quotation</button></td>
+                </tr>) })}
+            </tbody>
+          </table>
+        </div>)}
+      {view === 'table' && <p className="text-xs text-steel-600">Click a row to open the product. Click an underlined value to see every product with it.</p>}
       {ids.length > shown && <button className="border border-steel-300 bg-white px-4 py-2 text-sm hover:bg-steel-100" onClick={() => setShown(shown + 60)}>Show more ({ids.length - shown} left)</button>}
     </div>
   )

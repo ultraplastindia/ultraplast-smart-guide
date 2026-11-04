@@ -41,4 +41,12 @@ describe('catalogue helpers', () => {
     expect(pageIndexByCode(pages, 'missing')).toBe(-1)
     expect(pageIndexByCode(pages, '  ')).toBe(-1)
   })
+  it('reads numeric filters and sends them only when set', () => {
+    const p = parseParams(new URLSearchParams('pitch=25.4&width=abc&thickness=8'))
+    expect(p).toMatchObject({ pitch: '25.4', width: '', thickness: '8' })
+    const a = toRpcArgs(p)
+    expect(a).toMatchObject({ p_pitch: 25.4, p_thickness: 8 })
+    expect('p_width' in a).toBe(false)
+    expect('p_pitch' in toRpcArgs(parseParams(new URLSearchParams('')))).toBe(false)
+  })
 })

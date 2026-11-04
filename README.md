@@ -59,3 +59,6 @@ Bulk select and delete: products, categories, documents, product images, BOM lin
 
 ## Smart Guide viewer and quotation requests
 Run `supabase/migrations/0010_quotation_requests.sql` once. **Guide** opens a book-style viewer: general index with category bubbles, category pages and product pages, with search, contents, thumbnails, page-code box, previous/next, PDF, print, share link, help and a Request for quotation cart. Requests are listed under Admin, Quotation requests. The illustration and layout are original to Ultraplast.
+
+## Clickable tables and Go-to links
+Run `supabase/migrations/0011_search_numeric_filters.sql` once so clicking a pitch, width or thickness value finds every product with it. Category pages have an Index box, Related catalogues, and a Cards/Table switch; product tables are clickable; related products are managed in Admin, Products, Edit.

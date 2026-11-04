@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { show } from '../lib/format'
 import { deleteProducts } from '../lib/deleteProducts'
+import ProductPicker, { type PickedProduct } from '../components/ProductPicker'
 
 const SIZE = 50
 const EMPTY = { product_code: '', name: '', brand: '', description: '', material: '', pitch_mm: '', width_mm: '', thickness_mm: '',
@@ -108,6 +109,7 @@ function Editor({ id }: { id: string }) {
   const [origCats, setOrigCats] = useState<string[]>([])
   const [pending, setPending] = useState<File[]>([])
   const [selImgs, setSelImgs] = useState<Set<string>>(new Set())
+  const [related, setRelated] = useState<{ id: string; code: string; name: string }[]>([])
   const [msg, setMsg] = useState<Msg>(null)
   const [busy, setBusy] = useState(false)
 
@@ -121,6 +123,8 @@ function Editor({ id }: { id: string }) {
     setF({ product_code: s(data.product_code), name: s(data.name), brand: s(data.brand), description: s(data.description), material: s(data.material),
       pitch_mm: s(data.pitch_mm), width_mm: s(data.width_mm), thickness_mm: s(data.thickness_mm), colour: s(data.colour), application: s(data.application),
       status: s(data.status), verification_status: s(data.verification_status), catalogue_id: s(data.catalogue_id), source_page: s(data.source_page), drawing_ref: s(data.drawing_ref) })
+    const rel = await supabase.from('product_relations').select('products!related_product_id(id,product_code,name)').eq('product_id', id)
+    setRelated(((rel.data ?? []) as unknown as { products: { id: string; product_code: string; name: string } | null }[]).flatMap((r) => (r.products ? [{ id: r.products.id, code: r.products.product_code, name: r.products.name }] : [])))
     const links = ((data.product_category_links ?? []) as { category_id: string }[]).map((l) => l.category_id)
     setCatIds(links); setOrigCats(links)
     const rows = (data.product_specifications ?? []) as { id: string; spec_key: string; spec_value: string; unit: string | null }[]
@@ -209,6 +213,17 @@ function Editor({ id }: { id: string }) {
     if (!window.confirm(`Delete ${f.product_code} permanently? Its specifications, images and documents are deleted too. BOM lines that use it keep its code and name.`)) return
     try { await deleteProducts([id]); nav('/admin/products', { replace: true }) } catch (e) { fail((e as Error).message) }
   }
+  const addRelated = async (pp: PickedProduct) => {
+    if (pp.id === id) return setMsg({ ok: false, text: 'A product cannot be related to itself.' })
+    const r = await supabase.from('product_relations').upsert([{ product_id: id, related_product_id: pp.id }, { product_id: pp.id, related_product_id: id }], { onConflict: 'product_id,related_product_id', ignoreDuplicates: true })
+    if (r.error) return setMsg({ ok: false, text: r.error.message })
+    setMsg({ ok: true, text: 'Related product added.' }); await load()
+  }
+  const removeRelated = async (rid: string) => {
+    const r = await supabase.from('product_relations').delete().or(`and(product_id.eq.${id},related_product_id.eq.${rid}),and(product_id.eq.${rid},related_product_id.eq.${id})`)
+    if (r.error) return setMsg({ ok: false, text: r.error.message })
+    setMsg({ ok: true, text: 'Related product removed.' }); await load()
+  }
   const removeImages = async (list: Img[]) => {
     if (list.length === 0) return fail('Select at least one image.')
     if (!window.confirm(`Delete ${list.length} image(s)?`)) return
@@ -269,6 +284,15 @@ function Editor({ id }: { id: string }) {
           </div>))}
         <button className="border border-steel-300 bg-white px-3 py-1 text-sm" onClick={() => setSpecs([...specs, { key: '', value: '', unit: '' }])}>Add specification</button>
       </section>
+
+      {!isNew && (
+        <section aria-labelledby="rl" className="space-y-2">
+          <h2 id="rl" className="font-semibold">Related products ("Go to" links)</h2>
+          <p className="text-sm text-steel-600">Products listed here appear as clickable links on this product's page, and this product appears on theirs.</p>
+          {related.length === 0 ? <p className="text-sm text-steel-600">None yet.</p> : (
+            <ul className="flex flex-wrap gap-2">{related.map((r) => <li key={r.id} className="flex items-center gap-2 bg-white border border-steel-300 rounded px-2 py-1 text-sm"><span className="font-mono">{r.code}</span> {r.name}<button className="underline text-red-700" onClick={() => void removeRelated(r.id)}>Remove</button></li>)}</ul>)}
+          <div className="max-w-md"><label className="block text-xs text-steel-600 mb-1">Add a related product</label><ProductPicker value={null} onChange={(pp) => { if (pp) void addRelated(pp) }} /></div>
+        </section>)}
 
       <div><button disabled={busy} onClick={() => void save()} className="bg-belt-700 text-white px-5 py-2 disabled:opacity-60">{busy ? 'Saving…' : 'Save product'}</button>{!isNew && <button onClick={() => void removeProduct()} className="ml-5 text-red-700 underline">Delete product</button>}</div>
 

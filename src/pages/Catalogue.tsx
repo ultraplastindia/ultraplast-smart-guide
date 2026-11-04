@@ -83,10 +83,15 @@ export default function Catalogue() {
             <select id="fm" className={sel} value={params.material} onChange={(e) => update({ material: e.target.value })}><option value="">All materials</option>{facets.materials.map((m) => <option key={m.value} value={m.value}>{m.value} ({m.count})</option>)}</select></div>)}
           <div><label htmlFor="fs" className="block text-sm font-medium">Sort by</label>
             <select id="fs" className={sel} value={params.sort} onChange={(e) => update({ sort: e.target.value })}><option value="name">Name</option><option value="code">Product code</option><option value="category">Category</option></select></div>
-          {(params.q || params.category || params.brand || params.material) && <button className="text-sm underline" onClick={() => { setQ(''); setSp(new URLSearchParams()) }}>Clear filters</button>}
+          {(params.q || params.category || params.brand || params.material || params.pitch || params.width || params.thickness) && <button className="text-sm underline" onClick={() => { setQ(''); setSp(new URLSearchParams()) }}>Clear filters</button>}
         </aside>
 
         <section aria-label="Results" className="space-y-3">
+          {(params.pitch || params.width || params.thickness) && (
+            <div className="flex flex-wrap items-center gap-2 text-sm" aria-label="Active value filters">
+              {([['pitch', 'Pitch'], ['width', 'Width'], ['thickness', 'Thickness']] as const).map(([k, l]) => params[k] ? (
+                <button key={k} onClick={() => update({ [k]: '' })} className="inline-flex items-center gap-1 bg-belt-100 border border-belt-600 rounded-full px-3 py-1" title="Remove this filter">{l} {params[k]} mm <span aria-hidden="true">✕</span></button>) : null)}
+            </div>)}
           {err && <p role="alert" className="text-red-700 text-sm">{err}</p>}
           {!data && !err && <p role="status" className="text-steel-600">Loading products…</p>}
           {data && data.total === 0 && <p className="text-steel-600">No products found. Try a shorter code or clear the filters. If the catalogue is still empty, an administrator needs to import and publish products.</p>}
