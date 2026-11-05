@@ -51,3 +51,21 @@ export async function pagePreviewUrl(page: number | null): Promise<string | null
   const { data, error } = await supabase.storage.from('page-previews').createSignedUrl(`page-${String(page).padStart(4, '0')}.jpg`, 300)
   return error || !data ? null : data.signedUrl
 }
+
+/** First picture of each product, as short-lived signed links. */
+export async function thumbsFor(ids: string[]): Promise<Map<string, string>> {
+  const first = new Map<string, string>()
+  for (let i = 0; i < ids.length; i += 100) {
+    const r = await supabase.from('product_images').select('product_id,storage_path,sort_order').in('product_id', ids.slice(i, i + 100)).order('sort_order')
+    for (const row of (r.data ?? []) as { product_id: string; storage_path: string }[]) if (!first.has(row.product_id)) first.set(row.product_id, row.storage_path)
+  }
+  const byPath = new Map<string, string>()
+  for (const [pid, path] of first) byPath.set(path, pid)
+  const out = new Map<string, string>()
+  const paths = [...first.values()]
+  for (let i = 0; i < paths.length; i += 100) {
+    const s = await supabase.storage.from('product-images').createSignedUrls(paths.slice(i, i + 100), 3600)
+    for (const u of s.data ?? []) { const pid = u.path ? byPath.get(u.path) : undefined; if (pid && u.signedUrl) out.set(pid, u.signedUrl) }
+  }
+  return out
+}

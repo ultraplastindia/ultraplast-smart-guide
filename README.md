@@ -62,3 +62,6 @@ Run `supabase/migrations/0010_quotation_requests.sql` once. **Guide** opens a bo
 
 ## Clickable tables and Go-to links
 Run `supabase/migrations/0011_search_numeric_filters.sql` once so clicking a pitch, width or thickness value finds every product with it. Category pages have an Index box, Related catalogues, and a Cards/Table switch; product tables are clickable; related products are managed in Admin, Products, Edit.
+
+## Catalogue-page layout in the Guide
+Product pages in the Guide are laid out like a catalogue page: category-coloured borders and title bar, a "Related products, go to" column with pictures and code boxes, information cards, and a clickable "More in this catalogue" table. Every element links onward.

@@ -3,12 +3,12 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, CircleHelp, FileDown, LayoutGrid, Link2, List, Printer, Search, ShoppingCart, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
-import { listCategories } from '../lib/catalogue'
+import { listCategories, thumbsFor } from '../lib/catalogue'
 import { buildPages, categoryCode, findPage, guideUrl, pageIndexByCode, type GuideCat, type GuidePage, type GuideProd } from '../lib/format'
 import { LOGO_DATA_URL } from '../lib/logo'
 import { exportCategoryPdf, exportProductPdf } from '../lib/sharePdf'
 import { useRfq } from '../lib/rfq'
-import { Frame } from '../components/ImageViewer'
+import { CodeBoxes, Frame } from '../components/ImageViewer'
 import { AddToRfqButton } from '../components/RfqDrawer'
 import ShareBar from '../components/ShareBar'
 import ProductDetail from './ProductDetail'
@@ -16,40 +16,12 @@ import ProductDetail from './ProductDetail'
 const PALETTE = ['#2f9e44', '#1d5a78', '#e3a008', '#8e44ad', '#c0392b', '#16a085', '#2c3e50', '#d35400']
 const color = (i: number) => PALETTE[i % PALETTE.length]
 
-/** First picture of each product, as short-lived signed links. */
-async function thumbsFor(ids: string[]): Promise<Map<string, string>> {
-  const first = new Map<string, string>()
-  for (let i = 0; i < ids.length; i += 100) {
-    const r = await supabase.from('product_images').select('product_id,storage_path,sort_order').in('product_id', ids.slice(i, i + 100)).order('sort_order')
-    for (const row of (r.data ?? []) as { product_id: string; storage_path: string }[]) if (!first.has(row.product_id)) first.set(row.product_id, row.storage_path)
-  }
-  const byPath = new Map<string, string>()
-  for (const [pid, path] of first) byPath.set(path, pid)
-  const out = new Map<string, string>()
-  const paths = [...first.values()]
-  for (let i = 0; i < paths.length; i += 100) {
-    const s = await supabase.storage.from('product-images').createSignedUrls(paths.slice(i, i + 100), 3600)
-    for (const u of s.data ?? []) { const pid = u.path ? byPath.get(u.path) : undefined; if (pid && u.signedUrl) out.set(pid, u.signedUrl) }
-  }
-  return out
-}
-
-/** Each character of a page code in its own box, like the printed page codes. Long codes stay a single label. */
-function CodeBoxes({ code, big }: { code: string; big?: boolean }) {
-  if (code.length > 8) return <span className="font-mono text-sm font-bold bg-steel-950 text-white px-3 py-1 tracking-wider">{code}</span>
-  return (
-    <span className="inline-flex gap-1" aria-label={`Page code ${code}`}>
-      {[...code].map((ch, i) => <span key={i} aria-hidden="true" className={`inline-grid place-items-center border-2 border-steel-950 bg-white font-mono font-bold ${big ? 'w-8 h-10 text-xl' : 'w-5 h-6 text-xs'}`}>{ch}</span>)}
-    </span>
-  )
-}
-
 /** The white "page": a grid of clickable tabs, the page code, a title bar and the logo. */
-function Sheet({ code, title, cats, currentCatId, onOpenCat, onOpenIndex, narrow, children }: {
-  code: string; title: string; cats: GuideCat[]; currentCatId?: string; onOpenCat: (id: string) => void; onOpenIndex: () => void; narrow?: boolean; children: ReactNode
+function Sheet({ code, title, cats, currentCatId, accent, onOpenCat, onOpenIndex, narrow, children }: {
+  code: string; title: string; cats: GuideCat[]; currentCatId?: string; accent: string; onOpenCat: (id: string) => void; onOpenIndex: () => void; narrow?: boolean; children: ReactNode
 }) {
   return (
-    <div className={`mx-auto w-full ${narrow ? 'max-w-3xl' : 'max-w-5xl'} bg-white shadow-xl border border-steel-300 print:shadow-none`}>
+    <div className={`mx-auto w-full ${narrow ? 'max-w-3xl' : 'max-w-5xl'} bg-white shadow-xl border border-steel-300 print:shadow-none`} style={{ borderLeft: `6px solid ${accent}`, borderRight: `6px solid ${accent}` }}>
       <div className="px-3 pt-3">
         <div role="navigation" aria-label="Sections" className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-px bg-steel-300 border border-steel-300 print:hidden">
           <div className="bg-white"><button onClick={onOpenIndex} className={`w-full h-9 text-left px-2 border-l-4 border-steel-950 text-[10px] sm:text-[11px] leading-tight font-bold ${code === 'INDEX' ? 'bg-steel-950 text-white' : 'bg-steel-100 text-steel-950 hover:brightness-95'}`}>INDEX</button></div>
@@ -65,9 +37,14 @@ function Sheet({ code, title, cats, currentCatId, onOpenCat, onOpenIndex, narrow
       </div>
       <div className="flex items-end gap-3 px-3 py-3 border-b border-steel-300">
         <div className="shrink-0"><CodeBoxes code={code} big /><a href="https://www.ultraplastindia.com/" target="_blank" rel="noopener noreferrer" className="block text-[10px] text-brand-green underline mt-0.5 print:hidden">www.ultraplastindia.com</a></div>
-        <div className="flex-1 min-w-0 bg-steel-100 border-y-2 border-steel-300 px-3 py-1"><h1 className="text-right text-base sm:text-xl font-bold uppercase tracking-wide truncate">{title}</h1></div>
+        <div className="flex-1 min-w-0 border-y-2 px-3 py-1" style={{ background: `${accent}33`, borderColor: accent }}><h1 className="text-right text-base sm:text-xl font-bold uppercase tracking-wide truncate">{title}</h1></div>
         <img src={LOGO_DATA_URL} alt="Ultraplast" className="h-8 w-auto hidden sm:block shrink-0" />
       </div>
+      {code !== 'INDEX' && (
+        <div className="px-3 pt-2 text-[11px] text-steel-600 flex items-center gap-2 print:hidden">
+          <span>For general index, go to:</span>
+          <button onClick={onOpenIndex} aria-label="Go to the general index" className="inline-flex"><CodeBoxes code="INDEX" /></button>
+        </div>)}
       <div className="p-4 sm:p-6">{children}</div>
     </div>
   )
@@ -332,6 +309,7 @@ export default function Guide() {
   const cur = pages[idx]
   const catList = useMemo(() => (pages.some((p) => p.id === 'other' && p.kind === 'category') ? [...cats, { id: 'other', name: 'Other products' }] : cats), [pages, cats])
   const currentCatId = cur?.kind === 'category' ? cur.id : cur?.categoryId
+  const accent = (() => { const i = catList.findIndex((c) => c.id === currentCatId); return i >= 0 ? color(i) : '#003080' })()
 
   useEffect(() => { if (cur) { setCodeText(cur.code); setCodeBad(false) } scroll.current?.scrollTo({ top: 0 }) }, [cur?.code, cur?.kind]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -496,10 +474,10 @@ export default function Guide() {
 
         <div ref={scroll} className="flex-1 overflow-y-auto p-3 sm:p-6 lg:px-14 print:overflow-visible print:p-0">
           {cur && (
-            <Sheet code={cur.code} title={cur.title} cats={catList} currentCatId={currentCatId} onOpenCat={openCat} onOpenIndex={() => go(0)} narrow={cur.kind === 'index'}>
+            <Sheet code={cur.code} title={cur.title} cats={catList} currentCatId={currentCatId} accent={accent} onOpenCat={openCat} onOpenIndex={() => go(0)} narrow={cur.kind === 'index'}>
               {cur.kind === 'index' && <IndexPage cats={cats} thumbs={catThumbs} open={openCat} />}
               {cur.kind === 'category' && <CategoryPage cat={{ id: cur.id, name: cur.title }} prods={prodMap} pages={pages} onOpen={openProd} thumbsVersion={0} />}
-              {cur.kind === 'product' && <ProductDetail />}
+              {cur.kind === 'product' && <ProductDetail sheet />}
             </Sheet>)}
         </div>
       </div>
