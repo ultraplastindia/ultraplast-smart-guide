@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { STATUS_LABEL, availableActions, type AccessStatus, type AdminAction, type AppRole } from '../lib/access'
@@ -23,7 +24,11 @@ export default function AdminAccess() {
   const [rows, setRows] = useState<Row[]>([])
   const [invites, setInvites] = useState<Invite[]>([])
   const [q, setQ] = useState('')
-  const [filter, setFilter] = useState<AccessStatus | ''>('')
+  const [params] = useSearchParams()
+  const [filter, setFilter] = useState<AccessStatus | ''>(() => {
+    const s = params.get('status') ?? ''
+    return (Object.keys(STATUS_LABEL) as string[]).includes(s) ? (s as AccessStatus) : ''
+  })
   const [email, setEmail] = useState('')
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)

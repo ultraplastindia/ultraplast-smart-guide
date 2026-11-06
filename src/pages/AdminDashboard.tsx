@@ -12,6 +12,19 @@ async function count(table: string, filter?: [string, string]): Promise<number |
 interface Job { filename: string; status: string; imported: number; skipped: number; failed: number; created_at: string }
 interface Log { id: number; action: string; target_type: string | null; target_id: string | null; created_at: string }
 
+/** Where each count card leads. `perm` is the permission the target page needs; without it the card stays a plain box. */
+const STAT_LINK: Record<string, { to: string; perm?: string }> = {
+  'Registered users': { to: '/admin/access', perm: 'manage_users' },
+  'Pending requests': { to: '/admin/access?status=pending_approval', perm: 'manage_users' },
+  'Approved users': { to: '/admin/access?status=approved', perm: 'manage_users' },
+  'Suspended users': { to: '/admin/access?status=suspended', perm: 'manage_users' },
+  'New quotation requests': { to: '/admin/rfq', perm: 'manage_rfq' },
+  'Products': { to: '/admin/products', perm: 'manage_catalogue' },
+  'Drafts awaiting review': { to: '/admin/review', perm: 'manage_catalogue' },
+  'Categories': { to: '/admin/categories', perm: 'manage_catalogue' },
+  'Technical documents': { to: '/documents' },
+}
+
 export default function AdminDashboard() {
   const { can } = useAuth()
   const [stats, setStats] = useState<[string, number | null][]>([])
@@ -63,7 +76,13 @@ export default function AdminDashboard() {
     <div className="space-y-8">
       <h1 className="text-2xl font-bold">Admin panel</h1>
       <ul className="grid gap-px bg-steel-300 border border-steel-300 rounded-md overflow-hidden sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map(([l, n]) => <li key={l} className="bg-white px-4 py-3"><p className="text-sm text-steel-600">{l}</p><p className="text-2xl font-bold">{n ?? 'Not available'}</p></li>)}
+        {stats.map(([l, n]) => {
+          const link = STAT_LINK[l]
+          const body = <><p className="text-sm text-steel-600">{l}</p><p className="text-2xl font-bold">{n ?? 'Not available'}</p></>
+          return link && (!link.perm || can(link.perm))
+            ? <li key={l} className="bg-white"><Link to={link.to} title={`Open ${l}`} className="block h-full px-4 py-3 hover:bg-steel-100 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-green">{body}</Link></li>
+            : <li key={l} className="bg-white px-4 py-3">{body}</li>
+        })}
       </ul>
       {TILES.map((g) => {
         const items = g.items.filter((t) => can(t.perm))
