@@ -35,7 +35,7 @@ export default function AdminAccess() {
 
   const load = useCallback(async () => {
     let query = supabase.from('profiles')
-      .select('id,email,full_name,company,access_status,last_sign_in_at,created_at,user_roles(role),access_requests(requested_at)')
+      .select('id,email,full_name,company,access_status,last_sign_in_at,created_at,user_roles!user_id(role),access_requests!user_id(requested_at)')
       .order('created_at', { ascending: false }).limit(100)
     const term = q.trim().replace(/[%_\\,()]/g, '')
     if (term) query = query.ilike('email', `%${term}%`)
