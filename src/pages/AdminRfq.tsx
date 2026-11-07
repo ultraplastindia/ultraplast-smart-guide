@@ -32,7 +32,7 @@ export default function AdminRfq() {
     <div className="space-y-4">
       <p className="text-sm"><Link className="underline" to="/admin">Back to admin</Link></p>
       <h1 className="text-2xl font-bold">Quotation requests</h1>
-      <p className="text-sm text-steel-600">Requests sent from the Smart Guide. Contact the customer by email or phone, then update the status. Email alerts are not set up, so check here regularly.</p>
+      <p className="text-sm text-steel-600">Requests sent from the Smart Guide. Contact the customer by email or phone, then update the status. When Email settings are saved, each new request is also emailed to the address(es) set there.</p>
       {msg && <p role="alert" className={`text-sm ${msg.ok ? 'text-green-800' : 'text-red-700'}`}>{msg.text}</p>}
       <div><label htmlFor="rs" className="sr-only">Status</label><select id="rs" className={f} value={filter} onChange={(e) => setFilter(e.target.value)}><option value="">All statuses</option>{STATUS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
       {rows === null && !msg && <p role="status" className="text-steel-600">Loading…</p>}

@@ -71,6 +71,7 @@ export default function AdminDashboard() {
       { to: '/admin/share', title: 'Customer links', text: 'See, copy and withdraw links shared with customers.', perm: 'create_share_links' },
       { to: '/admin/rfq', title: 'Quotation requests', text: 'Requests sent from the Smart Guide quotation list.', perm: 'manage_rfq' }] },
     { group: 'People', items: [{ to: '/admin/access', title: 'User access', text: 'Approve people, set roles, suspend accounts.', perm: 'manage_users' }] },
+    { group: 'Settings', items: [{ to: '/admin/settings', title: 'Email settings', text: 'Mail service key, sign-in code emails and where quotation requests are emailed.', perm: 'manage_email_settings' }] },
   ]
   return (
     <div className="space-y-8">

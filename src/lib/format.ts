@@ -82,3 +82,43 @@ export function pageIndexByCode(pages: GuidePage[], input: string): number {
 }
 
 export const guideUrl = (p: GuidePage) => (p.kind === 'index' ? '/guide' : `/guide/${p.kind === 'category' ? 'c' : 'p'}/${p.id}`)
+
+// ---- Email settings and sign-in codes ----
+export const isEmail = (s: string) => s.length <= 254 && /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/.test(s)
+
+/** A one-time code from the email: digits only, 6 to 10 long (Supabase default is 6). */
+export const isOtpCode = (s: string) => /^\d{6,10}$/.test(s.trim())
+
+/** Splits what an admin typed (commas, semicolons, spaces or new lines) into unique lowercase addresses, in order. */
+export function parseEmailList(text: string): string[] {
+  const seen = new Set<string>()
+  for (const part of text.split(/[\s,;]+/)) {
+    const e = part.trim().toLowerCase()
+    if (e) seen.add(e)
+  }
+  return [...seen]
+}
+
+export interface MailLogRow {
+  id: number; kind: string; to_email: string; subject: string | null; reference: string | null; created_at: string
+  error: string | null; status_code: number | null; timed_out: boolean | null; net_error: string | null; response: string | null
+}
+
+function providerMessage(raw: string | null): string {
+  if (!raw) return ''
+  try {
+    const j = JSON.parse(raw) as { message?: unknown; error?: unknown }
+    const m = j.message ?? j.error
+    return typeof m === 'string' ? m.slice(0, 200) : ''
+  } catch { return raw.slice(0, 120) }
+}
+
+/** Plain-language outcome of one logged email. The mail service answers a few seconds after the email is queued. */
+export function mailResult(r: MailLogRow, now: number = Date.now()): { label: string; tone: 'ok' | 'bad' | 'wait' } {
+  if (r.error) return { label: r.error, tone: 'bad' }
+  if (r.status_code !== null && r.status_code >= 200 && r.status_code < 300) return { label: 'Accepted by the mail service', tone: 'ok' }
+  if (r.status_code !== null) return { label: `Rejected (${r.status_code}): ${providerMessage(r.response) || 'see your mail service dashboard'}`, tone: 'bad' }
+  if (r.timed_out || r.net_error) return { label: `Could not reach the mail service: ${r.net_error || 'timed out'}`, tone: 'bad' }
+  const minutes = (now - new Date(r.created_at).getTime()) / 60000
+  return minutes > 360 ? { label: 'No result recorded (older than 6 hours)', tone: 'wait' } : { label: 'Sending…', tone: 'wait' }
+}

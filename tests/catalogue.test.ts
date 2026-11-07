@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { NA, PAGE_SIZE, buildPages, findPage, guideUrl, pageCount, pageIndexByCode, parseParams, show, toRpcArgs } from '../src/lib/format'
+import { NA, PAGE_SIZE, buildPages, findPage, guideUrl, isEmail, isOtpCode, mailResult, pageCount, pageIndexByCode, parseEmailList, parseParams, show, toRpcArgs, type MailLogRow } from '../src/lib/format'
 
 describe('catalogue helpers', () => {
   it('shows "Not available" for missing values, never invents data', () => {
@@ -48,5 +48,36 @@ describe('catalogue helpers', () => {
     expect(a).toMatchObject({ p_pitch: 25.4, p_thickness: 8 })
     expect('p_width' in a).toBe(false)
     expect('p_pitch' in toRpcArgs(parseParams(new URLSearchParams('')))).toBe(false)
+  })
+})
+
+describe('email settings helpers', () => {
+  it('splits a typed list of addresses and removes duplicates', () => {
+    expect(parseEmailList('Sales@Ultraplast.com, quotes@ultraplast.com;\n sales@ultraplast.com  ')).toEqual(['sales@ultraplast.com', 'quotes@ultraplast.com'])
+    expect(parseEmailList('   ')).toEqual([])
+  })
+  it('recognises valid addresses and rejects odd ones', () => {
+    expect(isEmail('a@b.co')).toBe(true)
+    expect(isEmail('a@b')).toBe(false)
+    expect(isEmail('a b@c.com')).toBe(false)
+    expect(isEmail('"x"<a@b.co>')).toBe(false)
+  })
+  it('accepts only digit codes of 6 to 10 characters', () => {
+    expect(isOtpCode('123456')).toBe(true)
+    expect(isOtpCode(' 123456 ')).toBe(true)
+    expect(isOtpCode('12345')).toBe(false)
+    expect(isOtpCode('12345a')).toBe(false)
+    expect(isOtpCode('12345678901')).toBe(false)
+  })
+  const row = (o: Partial<MailLogRow>): MailLogRow => ({ id: 1, kind: 'test', to_email: 'a@b.co', subject: null, reference: null, created_at: new Date(1_000_000).toISOString(), error: null, status_code: null, timed_out: null, net_error: null, response: null, ...o })
+  it('explains each outcome in plain words', () => {
+    expect(mailResult(row({ status_code: 200 }), 1_000_000).tone).toBe('ok')
+    const bad = mailResult(row({ status_code: 403, response: '{"message":"The domain is not verified"}' }), 1_000_000)
+    expect(bad.tone).toBe('bad')
+    expect(bad.label).toContain('The domain is not verified')
+    expect(mailResult(row({ error: 'Email is not set up yet' }), 1_000_000).tone).toBe('bad')
+    expect(mailResult(row({ timed_out: true }), 1_000_000).tone).toBe('bad')
+    expect(mailResult(row({}), 1_000_000 + 60_000).label).toBe('Sending…')
+    expect(mailResult(row({}), 1_000_000 + 7 * 3_600_000).label).toContain('No result recorded')
   })
 })

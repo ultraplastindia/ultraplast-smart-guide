@@ -21,6 +21,7 @@ import AdminImages from './pages/AdminImages'
 import AdminShare from './pages/AdminShare'
 import Guide from './pages/Guide'
 import AdminRfq from './pages/AdminRfq'
+import AdminSettings from './pages/AdminSettings'
 import SharePage from './pages/SharePage'
 import AdminPageImages from './pages/AdminPageImages'
 import AdminFiles from './pages/AdminFiles'
@@ -72,6 +73,9 @@ export default function App() {
           </Route>
           <Route element={<RequirePermission permission="manage_rfq" />}>
             <Route path="admin/rfq" element={<AdminRfq />} />
+          </Route>
+          <Route element={<RequirePermission permission="manage_email_settings" />}>
+            <Route path="admin/settings" element={<AdminSettings />} />
           </Route>
           <Route path="help" element={<Help />} />
         </Route>

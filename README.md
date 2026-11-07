@@ -68,3 +68,6 @@ Product pages in the Guide are laid out like a catalogue page: category-coloured
 
 ## Admin panel cards
 The count cards at the top of the Admin panel are links (for example Pending requests opens User access already filtered to pending people). A card is a link only when you hold the permission for its page.
+
+## Email: sign-in codes and quotation emails
+Admin, Email settings (Super Admin) stores the key of a mail service (Resend or Brevo), the sender for sign-in/verification emails and the address(es) that receive quotation requests (these can differ). The Sign in page has **Email me a sign-in code instead**, and the sign-up page accepts the code from the verification email. Both emails are sent from the database (migration `0012`), the key is never readable by the browser, and a failed email can never block a quotation request. Setup steps: `DEPLOYMENT.md`, section 14.
