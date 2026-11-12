@@ -69,19 +69,21 @@ See the README, Phase 4. Import creates **unverified drafts**. Review each again
 4. Optional page images: in Supabase, Storage, open the `page-previews` bucket and upload the JPG files from `catalogue-page-previews.zip` (unzip first). Only do this if Ultraplast may republish the catalogue pages.
 
 
-## 14. Email: sign-in codes and quotation emails (migration 0012)
+## 14. Email: sign-in codes and quotation emails (migrations 0012 and 0013)
 This adds sign-in by emailed code, verification codes at sign-up, and an email for every quotation request. It only **adds** tables and functions; nothing existing is changed. Do the steps in this order.
 
-1. **Get a mail service key.** Create a free account at Resend (resend.com) or Brevo (brevo.com).
-   - Resend: add and verify your company domain (Domains), then API Keys, Create API key. The key starts with `re_`. Until the domain is verified, Resend only delivers to your own account email.
-   - Brevo: add and verify your sender address (Senders), then SMTP & API, API keys, generate a key (starts with `xkeysib-`).
-2. **Run the SQL.** In Supabase open **SQL Editor**, paste the whole file `supabase/migrations/0012_email_otp_and_quotation_mail.sql` and press **Run**. If it complains about `pg_net`, open Database, Extensions, switch on `pg_net`, then run it again (it is safe to run twice).
-3. **Deploy the new site files** (see the update steps in the README), so the Email settings page exists.
-4. **Save your settings.** Sign in as Super Admin, open **Admin, Email settings**, paste the key, enter the sender name and address, enter the address(es) that should receive quotation requests, and press **Save settings**.
-5. **Send the two test emails** from the same page. Check how they look and that the list "Recent emails" says *Accepted by the mail service*. Quotation emails already work at this point.
-6. **Switch on sign-in emails.** Supabase dashboard, **Authentication**, **Hooks**, add a hook of type **Send Email**, choose **Postgres function**, schema `public`, function `send_auth_email`, Save. Do this last: from then on Supabase sends **all** sign-up and sign-in emails through your mail service, so if the key or sender is wrong, those emails fail.
-7. **Check the web address list.** Authentication, URL Configuration: the Site URL is your Vercel address and `https://YOUR-SITE/login` is in the Redirect URLs, so the button in the verification email returns to the site.
+1. **Get a mail key.** Gmail is the simplest: it can email any address and needs no domain.
+   - **Gmail / Google Workspace (App password):** in your Google Account open Security, turn on 2-Step Verification, then search for "App passwords", create one (any name) and copy the 16 letters. Google Workspace: an administrator must allow app passwords. Gmail allows about 500 emails a day (Workspace about 2,000).
+   - **Resend** (resend.com): verify your company domain, then API Keys. Until the domain is verified it only delivers to your own account email.
+   - **Brevo** (brevo.com): verify your sender address, then SMTP & API, API keys (starts with `xkeysib-`).
+2. **Run the SQL, in order.** In Supabase open **SQL Editor**, paste the whole file `supabase/migrations/0012_email_otp_and_quotation_mail.sql` and press **Run**; then do the same with `0013_gmail_app_password.sql`. If it complains about `pg_net`, open Database, Extensions, switch on `pg_net` and run again (both files are safe to run twice).
+3. **Deploy the new site files** (the update steps are in the README), so the Email settings page exists.
+4. **Save your settings.** Sign in as Super Admin, open **Admin, Email settings**, choose your mail service, paste the key (for Gmail also enter the Gmail address), enter the sender name and the address(es) that should receive quotation requests, and press **Save settings**.
+5. **Gmail only: install the mail sender (once).** After saving, section 5 of the same page shows a ready-to-paste code. Press **Copy code**, then in the Supabase dashboard open **Edge Functions**, **Deploy a new function**, **Via Editor**, name it exactly `smtp-mail`, replace everything in the editor with the pasted code and press **Deploy function**. Open the function, go to **Details** and switch **off** "Verify JWT" (the function protects itself with the private key in the code). Resend and Brevo do not need this step.
+6. **Send the two test emails** from the same page. Check how they look and that "Recent emails" says *Accepted by the mail service*. Quotation emails already work at this point.
+7. **Switch on sign-in emails.** Supabase dashboard, **Authentication**, **Hooks**, add a hook of type **Send Email**, choose **Postgres function**, schema `public`, function `send_auth_email`, Save. Do this last: from then on Supabase sends **all** sign-up and sign-in emails through your mail service, so if the key or sender is wrong, those emails fail.
+8. **Check the web address list.** Authentication, URL Configuration: the Site URL is your Vercel address and `https://YOUR-SITE/login` is in the Redirect URLs, so the button in the verification email returns to the site.
 
-To undo: delete the Send Email hook (step 6). Supabase then sends its own emails again, and password sign-in is never affected. To remove the feature completely, use the ROLLBACK notes at the bottom of the SQL file.
+To undo: delete the Send Email hook (step 7). Supabase then sends its own emails again, and password sign-in is never affected. To remove the feature completely, use the ROLLBACK notes at the bottom of the SQL files.
 
 Who can use the page: Super Admins. A Super Admin can also grant the permission `manage_email_settings` to a specific admin in User access.
