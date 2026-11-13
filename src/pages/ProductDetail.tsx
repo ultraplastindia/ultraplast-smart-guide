@@ -173,7 +173,7 @@ export default function ProductDetail({ sheet = false }: { sheet?: boolean }) {
             <h3 className="text-xs font-bold uppercase tracking-wide">Related products · go to:</h3>
             {related.length === 0 ? <p className="text-xs text-steel-600">No related products linked yet.</p> : (
               <ul className="space-y-3">{related.map((r) => (
-                <li key={r.id}><Link to={toProd(r.id)} className="block text-center border border-steel-300 rounded-md p-2 bg-white hover:shadow-md hover:border-brand-green">
+                <li key={r.id}><Link to={toProd(r.id)} className="group block text-center border border-steel-300 rounded-md p-2 bg-white hover:shadow-md hover:border-brand-green">
                   <Frame src={relThumbs.get(r.id)} alt={r.name} /><span className="block mt-1 text-[11px] leading-tight font-semibold">{r.name}</span><span className="mt-1 inline-block"><CodeBoxes code={r.product_code} /></span></Link></li>))}</ul>)}
           </aside>
           <div className="space-y-5 min-w-0 order-1 lg:order-2">

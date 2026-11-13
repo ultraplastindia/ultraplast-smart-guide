@@ -44,7 +44,7 @@ function Sheet({ code, title, cats, currentCatId, accent, onOpenCat, onOpenIndex
       {code !== 'INDEX' && (
         <div className="px-3 pt-2 text-[11px] text-steel-600 flex items-center gap-2 print:hidden">
           <span>For general index, go to:</span>
-          <button onClick={onOpenIndex} aria-label="Go to the general index" className="inline-flex"><CodeBoxes code="INDEX" /></button>
+          <button onClick={onOpenIndex} aria-label="Go to the general index" className="group inline-flex"><CodeBoxes code="INDEX" /></button>
         </div>)}
       <div className="p-4 sm:p-6">{children}</div>
     </div>
@@ -77,8 +77,8 @@ function CodeSvg({ code, x, y }: { code: string; x: number; y: number }) {
   const w = 12, gap = 2, total = code.length * (w + gap) - gap
   return (
     <g aria-hidden="true">{[...code].map((ch, i) => (
-      <g key={i}><rect x={x - total / 2 + i * (w + gap)} y={y} width={w} height={16} fill="#f4f6f7" stroke="#4a5b69" strokeWidth="1.2" />
-        <text x={x - total / 2 + i * (w + gap) + w / 2} y={y + 12} textAnchor="middle" fontSize="10" fontWeight="700" fontFamily="monospace" className="fill-steel-950">{ch}</text></g>))}</g>
+      <g key={i}><rect x={x - total / 2 + i * (w + gap)} y={y} width={w} height={16} fill="#f4f6f7" stroke="#4a5b69" strokeWidth="1.2" className="group-hover:fill-red-600 group-hover:stroke-red-700 group-focus-visible:fill-red-600" />
+        <text x={x - total / 2 + i * (w + gap) + w / 2} y={y + 12} textAnchor="middle" fontSize="10" fontWeight="700" fontFamily="monospace" className="fill-steel-950 group-hover:fill-white group-focus-visible:fill-white">{ch}</text></g>))}</g>
   )
 }
 
@@ -225,7 +225,7 @@ function CategoryPage({ cat, prods, pages, onOpen, thumbsVersion, accent, onGo }
         <section aria-label="Related catalogues" className="border border-steel-300 rounded-md overflow-hidden">
           <h2 className="bg-steel-100 px-3 py-1.5 text-sm font-bold uppercase tracking-wide text-center">Related catalogues · go to:</h2>
           <ul className="p-2 grid gap-2 sm:grid-cols-2">
-            {related.map((r) => <li key={r.id}><Link to={`/guide/c/${r.id}`} className="flex items-center gap-2 hover:text-brand-green text-sm"><CodeBoxes code={r.code} /><span className="font-medium">{r.name}</span><span className="text-xs text-steel-600">({r.n} shared)</span></Link></li>)}
+            {related.map((r) => <li key={r.id}><Link to={`/guide/c/${r.id}`} className="group flex items-center gap-2 hover:text-brand-green text-sm"><CodeBoxes code={r.code} /><span className="font-medium">{r.name}</span><span className="text-xs text-steel-600">({r.n} shared)</span></Link></li>)}
           </ul>
         </section>)}
 

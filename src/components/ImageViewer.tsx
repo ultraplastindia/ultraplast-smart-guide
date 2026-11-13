@@ -99,7 +99,7 @@ export function CodeBoxes({ code, big }: { code: string; big?: boolean }) {
   if (code.length > 8) return <span className="font-mono text-sm font-bold bg-steel-950 text-white px-3 py-1 tracking-wider">{code}</span>
   return (
     <span className="inline-flex gap-1" aria-label={`Page code ${code}`}>
-      {[...code].map((ch, i) => <span key={i} aria-hidden="true" className={`inline-grid place-items-center border-2 border-steel-950 bg-white font-mono font-bold ${big ? 'w-8 h-10 text-xl' : 'w-5 h-6 text-xs'}`}>{ch}</span>)}
+      {[...code].map((ch, i) => <span key={i} aria-hidden="true" className={`inline-grid place-items-center border-2 border-steel-950 bg-white font-mono font-bold group-hover:border-red-700 group-hover:bg-red-600 group-hover:text-white group-focus-visible:border-red-700 group-focus-visible:bg-red-600 group-focus-visible:text-white ${big ? 'w-8 h-10 text-xl' : 'w-5 h-6 text-xs'}`}>{ch}</span>)}
     </span>
   )
 }

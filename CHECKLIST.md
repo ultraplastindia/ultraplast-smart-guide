@@ -6,18 +6,19 @@
 - Tracked file count script runs (current count is below the 100 limit).
 
 ## Written but NOT run (treat as unverified)
-- All SQL migrations (0001-0006) and `supabase/tests/access_smoke.sql`. They were reviewed by reading only; no PostgreSQL was available.
+- All SQL migrations (0001-0014) and `supabase/tests/access_smoke.sql`. They were reviewed by reading only; no PostgreSQL was available. This includes 0014 (Guide illustrations) and its admin editor: picture upload, dragging callouts and the access rules still need a test on a real Supabase project.
 - The React app: typecheck, lint, unit tests, build, and browser behaviour. Excel/PDF export libraries.
 - The GitHub Actions workflow and the Vercel/Supabase deployment.
 - Accessibility (keyboard, screen reader) and mobile layout.
 
 ## Implemented (code present)
-Login, request access, pending/denied pages; allowlist approval, roles, suspension, audit log; RLS and secure functions; catalogue search, filters, sorting, pagination; product details with "Not available"; categories and explorer; comparison; BOMs with Excel/PDF/print; import (CSV/Excel) with validation and batches; review queue; private document and image storage with signed links; admin dashboard; profile, dashboard and help pages; extraction script with OCR and validation report.
+Login (password and email code), request access, pending/denied pages; category, product, image and document admin screens; related products and Guide viewer with quotation requests and email; Guide illustrations with clickable page codes; allowlist approval, roles, suspension, audit log; RLS and secure functions; catalogue search, filters, sorting, pagination; product details with "Not available"; categories and explorer; comparison; BOMs with Excel/PDF/print; import (CSV/Excel) with validation and batches; review queue; private document and image storage with signed links; admin dashboard; profile, dashboard and help pages; extraction script with OCR and validation report.
 
 ## Incomplete or not built
-- Screens to create/edit/reorder categories and to add or edit single products manually (use import, or the Supabase table editor, for now).
-- Product image upload screen; UI for per-user extra permissions (the database function exists).
 - Sending invitation emails (the allowlist pre-approves an address but sends nothing).
+- `package-lock.json` is not in the repository: run `npm install` once and commit it, because CI uses `npm ci`.
+- Guide illustrations are not included in PDFs or customer share links, and callouts are placed by hand (no automatic import).
+- Table item codes (such as the highlighted VG- codes on a System Plast page) are not clickable.
 - Rate limiting on admin functions; server-side-only export enforcement.
 - Official logo (add `public/logo.png`); featured/frequently-used sections on the home page.
 - Component tests and end-to-end tests.
