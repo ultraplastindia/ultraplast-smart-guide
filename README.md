@@ -71,3 +71,6 @@ The count cards at the top of the Admin panel are links (for example Pending req
 
 ## Email: sign-in codes and quotation emails
 Admin, Email settings (Super Admin) stores the key of a mail service (a Gmail App password, Resend or Brevo), the sender for sign-in/verification emails and the address(es) that receive quotation requests (these can differ). The Sign in page has **Email me a sign-in code instead**, and the sign-up page accepts the code from the verification email. Both emails are sent from the database (migration `0012`), the key is never readable by the browser, and a failed email can never block a quotation request. Gmail is sent through a small Edge Function, `supabase/functions/smtp-mail`, which the settings page hands you ready to paste (migration `0013`). Setup steps: `DEPLOYMENT.md`, section 14.
+
+## Guide illustrations (clickable page codes)
+Admin, Guide illustrations puts a picture on a category page or a product page of the Guide and lets an admin place callouts on it: a label and a page code joined by a line to a part of the picture. In the Guide, clicking a callout opens the page it points to and the code turns red on hover, as on the printed Smart Guide index pages. Pages without a picture are unchanged. It uses migration `0014` and a private `guide-illustrations` bucket. Setup: `DEPLOYMENT.md`, section 15.

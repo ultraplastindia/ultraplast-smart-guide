@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { NA, PAGE_SIZE, buildPages, findPage, guideUrl, isEmail, isOtpCode, mailResult, pageCount, pageIndexByCode, parseEmailList, parseParams, show, toRpcArgs, type MailLogRow } from '../src/lib/format'
+import { NA, PAGE_SIZE, buildPages, clampPct, pointToPct, resolveCallouts, type Callout, findPage, guideUrl, isEmail, isOtpCode, mailResult, pageCount, pageIndexByCode, parseEmailList, parseParams, show, toRpcArgs, type MailLogRow } from '../src/lib/format'
 
 describe('catalogue helpers', () => {
   it('shows "Not available" for missing values, never invents data', () => {
@@ -79,5 +79,25 @@ describe('email settings helpers', () => {
     expect(mailResult(row({ timed_out: true }), 1_000_000).tone).toBe('bad')
     expect(mailResult(row({}), 1_000_000 + 60_000).label).toBe('Sending…')
     expect(mailResult(row({}), 1_000_000 + 7 * 3_600_000).label).toContain('No result recorded')
+  })
+})
+
+describe('guide illustration callouts', () => {
+  const pages = buildPages([{ id: 'c1', name: 'Frames' }], [{ id: 'p1', code: '54060A', name: 'Support heads', categoryId: 'c1' }])
+  const call = (over: Partial<Callout>): Callout => ({ id: 'x', label: 'L', targetKind: 'product', targetId: 'p1', px: 10, py: 10, lx: 20, ly: 20, ...over })
+  it('keeps positions inside the picture', () => {
+    expect(clampPct(-5)).toBe(0)
+    expect(clampPct(140)).toBe(100)
+    expect(clampPct(33.349)).toBe(33.3)
+    expect(clampPct(Number.NaN)).toBe(0)
+  })
+  it('turns a pointer position into percent of the picture', () => {
+    expect(pointToPct(150, 60, { left: 100, top: 50, width: 200, height: 100 })).toEqual({ x: 25, y: 10 })
+    expect(pointToPct(10, 10, { left: 100, top: 50, width: 200, height: 100 })).toEqual({ x: 0, y: 0 })
+    expect(pointToPct(5, 5, { left: 0, top: 0, width: 0, height: 0 })).toEqual({ x: 0, y: 0 })
+  })
+  it('gives each callout the code and address of the page it opens, and drops callouts whose page is gone', () => {
+    const out = resolveCallouts([call({ id: 'a' }), call({ id: 'b', targetKind: 'category', targetId: 'c1' }), call({ id: 'c', targetId: 'gone' })], pages)
+    expect(out.map((o) => [o.id, o.code, o.url])).toEqual([['a', '54060A', '/guide/p/p1'], ['b', 'C01', '/guide/c/c1']])
   })
 })

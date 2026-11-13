@@ -87,3 +87,15 @@ This adds sign-in by emailed code, verification codes at sign-up, and an email f
 To undo: delete the Send Email hook (step 7). Supabase then sends its own emails again, and password sign-in is never affected. To remove the feature completely, use the ROLLBACK notes at the bottom of the SQL files.
 
 Who can use the page: Super Admins. A Super Admin can also grant the permission `manage_email_settings` to a specific admin in User access.
+
+
+## 15. Guide illustrations: clickable pictures with page codes (migration 0014)
+
+Optional. It lets a category page or a product page of the Guide show a picture with labels and page codes that open other pages, like the printed Smart Guide index pages. Pages without a picture look exactly as before.
+
+1. **Run the SQL.** In Supabase open **SQL Editor**, paste the whole file `supabase/migrations/0014_guide_illustrations.sql` and press **Run**. It adds two tables and a private storage bucket named `guide-illustrations`. Run it once.
+2. **Add a picture.** Sign in as an admin, open **Admin, Guide illustrations**, choose a category (or a product), pick the picture (PNG, JPG or WEBP, up to 5 MB).
+3. **Add callouts.** Choose the product or category the callout opens, optionally type a label, and press **Add**. Then drag the round dot onto the part of the picture and the label box to where the text and code should sit. Positions save when you let go.
+4. **Check it.** Open the Guide, go to that category or product. Click a code: the page opens. Hovering turns the code red.
+
+To undo: remove the illustration on the same admin page. To remove the feature completely, run `drop table public.guide_callouts, public.guide_illustrations;` and delete the `guide-illustrations` bucket.
