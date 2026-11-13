@@ -19,6 +19,7 @@ import AdminProducts from './pages/AdminProducts'
 import AdminCategories from './pages/AdminCategories'
 import AdminImages from './pages/AdminImages'
 import AdminShare from './pages/AdminShare'
+import AdminGuideIllustrations from './pages/AdminGuideIllustrations'
 import Guide from './pages/Guide'
 import AdminRfq from './pages/AdminRfq'
 import AdminSettings from './pages/AdminSettings'
@@ -67,6 +68,7 @@ export default function App() {
             <Route path="admin/products/:id" element={<AdminProducts />} />
             <Route path="admin/categories" element={<AdminCategories />} />
             <Route path="admin/images" element={<AdminImages />} />
+            <Route path="admin/guide-illustrations" element={<AdminGuideIllustrations />} />
           </Route>
           <Route element={<RequirePermission permission="create_share_links" />}>
             <Route path="admin/share" element={<AdminShare />} />

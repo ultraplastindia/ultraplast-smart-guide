@@ -83,6 +83,27 @@ export function pageIndexByCode(pages: GuidePage[], input: string): number {
 
 export const guideUrl = (p: GuidePage) => (p.kind === 'index' ? '/guide' : `/guide/${p.kind === 'category' ? 'c' : 'p'}/${p.id}`)
 
+// ---- Smart Guide clickable illustrations (callouts) ----
+export interface Callout { id: string; label: string; targetKind: 'category' | 'product'; targetId: string; px: number; py: number; lx: number; ly: number }
+export interface ResolvedCallout extends Callout { code: string; url: string }
+
+/** Keeps a position inside the picture: 0 to 100 percent, one decimal. */
+export const clampPct = (n: number) => (Number.isFinite(n) ? Math.min(100, Math.max(0, Math.round(n * 10) / 10)) : 0)
+
+/** Mouse or finger position to percent of the picture box. */
+export function pointToPct(clientX: number, clientY: number, box: { left: number; top: number; width: number; height: number }): { x: number; y: number } {
+  if (box.width <= 0 || box.height <= 0) return { x: 0, y: 0 }
+  return { x: clampPct(((clientX - box.left) / box.width) * 100), y: clampPct(((clientY - box.top) / box.height) * 100) }
+}
+
+/** Each callout with the code and address of the page it opens. Callouts whose page no longer exists are left out. */
+export function resolveCallouts(callouts: Callout[], pages: GuidePage[]): ResolvedCallout[] {
+  return callouts.flatMap((c) => {
+    const i = findPage(pages, c.targetKind === 'category' ? 'c' : 'p', c.targetId)
+    return i < 0 ? [] : [{ ...c, code: pages[i].code, url: guideUrl(pages[i]) }]
+  })
+}
+
 // ---- Email settings and sign-in codes ----
 export const isEmail = (s: string) => s.length <= 254 && /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/.test(s)
 

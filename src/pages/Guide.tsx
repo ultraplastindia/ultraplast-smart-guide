@@ -11,6 +11,7 @@ import { useRfq } from '../lib/rfq'
 import { CodeBoxes, Frame } from '../components/ImageViewer'
 import { AddToRfqButton } from '../components/RfqDrawer'
 import ShareBar from '../components/ShareBar'
+import GuideIllustration from '../components/GuideIllustration'
 import ProductDetail from './ProductDetail'
 
 const PALETTE = ['#2f9e44', '#1d5a78', '#e3a008', '#8e44ad', '#c0392b', '#16a085', '#2c3e50', '#d35400']
@@ -141,7 +142,7 @@ function IndexPage({ cats, thumbs, open }: { cats: GuideCat[]; thumbs: Map<strin
 interface GuideDetail { id: string; brand: string | null; material: string | null; pitch_mm: number | null; width_mm: number | null; thickness_mm: number | null }
 const CELL_LINK = 'underline decoration-dotted underline-offset-2 hover:text-brand-green'
 
-function CategoryPage({ cat, prods, pages, onOpen, thumbsVersion }: { cat: GuideCat; prods: Map<string, GuideProd>; pages: GuidePage[]; onOpen: (id: string) => void; thumbsVersion: number }) {
+function CategoryPage({ cat, prods, pages, onOpen, thumbsVersion, accent, onGo }: { cat: GuideCat; prods: Map<string, GuideProd>; pages: GuidePage[]; onOpen: (id: string) => void; thumbsVersion: number; accent?: string; onGo?: (url: string) => void }) {
   const rfq = useRfq()
   const [ids, setIds] = useState<string[] | null>(null)
   const [shown, setShown] = useState(60)
@@ -211,6 +212,7 @@ function CategoryPage({ cat, prods, pages, onOpen, thumbsVersion }: { cat: Guide
   return (
     <div className="space-y-4">
       {cat.id !== 'other' && <ShareBar kind="category" id={cat.id} name={cat.name} />}
+      {cat.id !== 'other' && onGo && <GuideIllustration kind="category" pageId={cat.id} pages={pages} onOpen={onGo} accent={accent} />}
 
       <section aria-label={`Index of ${cat.name}`} className="border border-steel-300 rounded-md overflow-hidden">
         <h2 className="bg-steel-100 px-3 py-1.5 text-sm font-bold uppercase tracking-wide text-center">Index {cat.name} · go to:</h2>
@@ -476,8 +478,8 @@ export default function Guide() {
           {cur && (
             <Sheet code={cur.code} title={cur.title} cats={catList} currentCatId={currentCatId} accent={accent} onOpenCat={openCat} onOpenIndex={() => go(0)} narrow={cur.kind === 'index'}>
               {cur.kind === 'index' && <IndexPage cats={cats} thumbs={catThumbs} open={openCat} />}
-              {cur.kind === 'category' && <CategoryPage cat={{ id: cur.id, name: cur.title }} prods={prodMap} pages={pages} onOpen={openProd} thumbsVersion={0} />}
-              {cur.kind === 'product' && <ProductDetail sheet />}
+              {cur.kind === 'category' && <CategoryPage cat={{ id: cur.id, name: cur.title }} prods={prodMap} pages={pages} onOpen={openProd} thumbsVersion={0} accent={accent} onGo={(u) => nav(u)} />}
+              {cur.kind === 'product' && (<div className="space-y-4"><GuideIllustration kind="product" pageId={cur.id} pages={pages} onOpen={(u) => nav(u)} accent={accent} /><ProductDetail sheet /></div>)}
             </Sheet>)}
         </div>
       </div>

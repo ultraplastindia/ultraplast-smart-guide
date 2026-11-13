@@ -61,6 +61,7 @@ export default function AdminDashboard() {
       { to: '/admin/products', title: 'Products', text: 'Add or edit products: details, several categories, specifications and images.', perm: 'manage_catalogue' },
       { to: '/admin/categories', title: 'Categories', text: 'Add, rename, reorder and hide categories.', perm: 'manage_catalogue' },
       { to: '/admin/images', title: 'Bulk product images', text: 'Upload many product images at once, matched by product code.', perm: 'manage_catalogue' },
+      { to: '/admin/guide-illustrations', title: 'Guide illustrations', text: 'Add a picture with clickable page codes to a category or product page of the Guide.', perm: 'manage_catalogue' },
       { to: '/admin/import', title: 'Import products', text: 'Upload an Excel or CSV file with many products.', perm: 'manage_imports' },
       { to: '/admin/review', title: 'Review queue', text: 'Publish, verify or archive imported products.', perm: 'manage_catalogue' }] },
     { group: 'Files', items: [
