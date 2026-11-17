@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, CircleHelp, FileDown, LayoutGrid, Link2, List, Printer, Search, ShoppingCart, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CircleHelp, FileDown, Info, LayoutGrid, LifeBuoy, Link2, List, Maximize2, Printer, Search, ShoppingCart, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { listCategories, thumbsFor } from '../lib/catalogue'
@@ -12,6 +12,7 @@ import { CodeBoxes, Frame } from '../components/ImageViewer'
 import { AddToRfqButton } from '../components/RfqDrawer'
 import ShareBar from '../components/ShareBar'
 import GuideIllustration from '../components/GuideIllustration'
+import ItemDetailsModal, { ProductAssist } from '../components/GuidePanels'
 import ProductDetail from './ProductDetail'
 
 const PALETTE = ['#2f9e44', '#1d5a78', '#e3a008', '#8e44ad', '#c0392b', '#16a085', '#2c3e50', '#d35400']
@@ -142,7 +143,7 @@ function IndexPage({ cats, thumbs, open }: { cats: GuideCat[]; thumbs: Map<strin
 interface GuideDetail { id: string; brand: string | null; material: string | null; pitch_mm: number | null; width_mm: number | null; thickness_mm: number | null }
 const CELL_LINK = 'underline decoration-dotted underline-offset-2 hover:text-brand-green'
 
-function CategoryPage({ cat, prods, pages, onOpen, thumbsVersion, accent, onGo }: { cat: GuideCat; prods: Map<string, GuideProd>; pages: GuidePage[]; onOpen: (id: string) => void; thumbsVersion: number; accent?: string; onGo?: (url: string) => void }) {
+function CategoryPage({ cat, prods, pages, onOpen, thumbsVersion, accent, onGo, onDetails }: { cat: GuideCat; prods: Map<string, GuideProd>; pages: GuidePage[]; onOpen: (id: string) => void; thumbsVersion: number; accent?: string; onGo?: (url: string) => void; onDetails?: (id: string) => void }) {
   const rfq = useRfq()
   const [ids, setIds] = useState<string[] | null>(null)
   const [shown, setShown] = useState(60)
@@ -239,7 +240,7 @@ function CategoryPage({ cat, prods, pages, onOpen, thumbsVersion, accent, onGo }
           {ids.slice(0, shown).map((id) => { const p = prods.get(id)!; return (
             <li key={id} className="flex flex-col border border-steel-300 rounded-md overflow-hidden bg-white hover:shadow-md transition">
               <button onClick={() => onOpen(id)} className="text-left p-2 space-y-1 flex-1"><Frame src={thumbs.get(id)} alt={p.name} /><span className="block text-sm font-semibold leading-snug">{p.name}</span><span className="block text-xs font-mono text-steel-600">{p.code}</span></button>
-              <div className="px-2 pb-2"><AddToRfqButton id={id} code={p.code} name={p.name} /></div>
+              <div className="px-2 pb-2 flex items-stretch gap-1"><div className="flex-1 min-w-0"><AddToRfqButton id={id} code={p.code} name={p.name} /></div>{onDetails && <button type="button" title="Item details and downloads" aria-label={`Item details and downloads for ${p.code}`} onClick={() => onDetails(id)} className="border border-steel-300 px-2 hover:bg-steel-100"><Info size={16} aria-hidden /></button>}</div>
             </li>) })}
         </ul>
       ) : (
@@ -256,7 +257,7 @@ function CategoryPage({ cat, prods, pages, onOpen, thumbsVersion, accent, onGo }
                   <td className="px-3 py-2">{filterCell(d?.pitch_mm, (v) => `pitch=${v}`)}</td>
                   <td className="px-3 py-2">{filterCell(d?.width_mm, (v) => `width=${v}`)}</td>
                   <td className="px-3 py-2">{filterCell(d?.thickness_mm, (v) => `thickness=${v}`)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap"><button className="border border-brand-green text-brand-green px-2 py-1 text-xs hover:bg-brand-green hover:text-white" onClick={(e) => { e.stopPropagation(); rfq.add({ id, code: p.code, name: p.name }) }}>Add to quotation</button></td>
+                  <td className="px-3 py-2 whitespace-nowrap"><div className="flex gap-1">{onDetails && <button type="button" title="Item details and downloads" aria-label={`Item details and downloads for ${p.code}`} className="border border-steel-300 px-2 py-1 text-xs hover:bg-steel-100" onClick={(e) => { e.stopPropagation(); onDetails(id) }}><Info size={14} aria-hidden /></button>}<button className="border border-brand-green text-brand-green px-2 py-1 text-xs hover:bg-brand-green hover:text-white" onClick={(e) => { e.stopPropagation(); rfq.add({ id, code: p.code, name: p.name }) }}>Add to quotation</button></div></td>
                 </tr>) })}
             </tbody>
           </table>
@@ -276,7 +277,9 @@ export default function Guide() {
   const [prods, setProds] = useState<GuideProd[]>([])
   const [loaded, setLoaded] = useState(false)
   const [err, setErr] = useState('')
-  const [panel, setPanel] = useState<'' | 'contents' | 'thumbs' | 'help' | 'share'>('')
+  const [panel, setPanel] = useState<'' | 'contents' | 'thumbs' | 'help' | 'share' | 'assist'>('')
+  const [zoom, setZoom] = useState(1)
+  const [detailId, setDetailId] = useState('')
   const [codeText, setCodeText] = useState('')
   const [codeBad, setCodeBad] = useState(false)
   const [q, setQ] = useState('')
@@ -339,6 +342,7 @@ export default function Guide() {
   const go = useCallback((i: number) => { if (pages[i]) { nav(guideUrl(pages[i])); setPanel('') } }, [pages, nav])
   const openCat = (cid: string) => nav(cid === 'other' ? '/guide/c/other' : `/guide/c/${cid}`)
   const openProd = (pid: string) => nav(`/guide/p/${pid}`)
+  const zoomBy = (d: number) => setZoom((z) => Math.min(2, Math.max(0.5, Math.round((z + d) * 10) / 10)))
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -403,8 +407,13 @@ export default function Guide() {
           <button className={ib} title="Next page" aria-label="Next page" disabled={idx >= pages.length - 1} onClick={() => go(idx + 1)}><ChevronRight size={24} /></button>
         </div>
         <div className="flex items-center gap-0.5 relative">
+          <button className={ib} title="Zoom out" aria-label="Zoom out" disabled={zoom <= 0.5} onClick={() => zoomBy(-0.1)}><ZoomOut size={22} /></button>
+          <span className="text-xs text-white/80 w-10 text-center tabular-nums" aria-live="polite">{Math.round(zoom * 100)}%</span>
+          <button className={ib} title="Zoom in" aria-label="Zoom in" disabled={zoom >= 2} onClick={() => zoomBy(0.1)}><ZoomIn size={22} /></button>
+          <button className={ib} title="Fit to screen" aria-label="Fit to screen" disabled={zoom === 1} onClick={() => setZoom(1)}><Maximize2 size={20} /></button>
           <button className={ib} title="Print this page" aria-label="Print this page" onClick={() => void doPdf('print')}><Printer size={22} /></button>
           <button className={ib} title="Share link" aria-label="Share link" aria-pressed={panel === 'share'} onClick={() => setPanel(panel === 'share' ? '' : 'share')}><Link2 size={22} /></button>
+          <button className={ib} title="Additional product assistance" aria-label="Additional product assistance" aria-pressed={panel === 'assist'} onClick={() => setPanel(panel === 'assist' ? '' : 'assist')}><LifeBuoy size={22} /></button>
           <button className={ib} title="Help" aria-label="Help" aria-pressed={panel === 'help'} onClick={() => setPanel(panel === 'help' ? '' : 'help')}><CircleHelp size={22} /></button>
         </div>
         <button onClick={() => rfq.setOpen(true)} className="ml-auto flex items-center gap-2 bg-brand-green hover:opacity-90 text-white px-3 py-1.5 rounded-sm text-left">
@@ -471,18 +480,23 @@ export default function Guide() {
               : <ShareBar kind={cur.kind === 'category' ? 'category' : 'product'} id={cur.id} name={cur.title} />}
           </div>)}
 
+        {panel === 'assist' && <ProductAssist cur={cur} pages={pages} onGo={(p) => go(pages.indexOf(p))} onClose={() => setPanel('')} />}
+
         <button className="hidden lg:grid absolute left-2 top-1/2 -translate-y-1/2 z-10 h-14 w-9 place-items-center bg-black/30 hover:bg-black/50 text-white rounded disabled:opacity-0 print:hidden" aria-label="Previous page" disabled={idx <= 0} onClick={() => go(idx - 1)}><ChevronLeft /></button>
         <button className="hidden lg:grid absolute right-2 top-1/2 -translate-y-1/2 z-10 h-14 w-9 place-items-center bg-black/30 hover:bg-black/50 text-white rounded disabled:opacity-0 print:hidden" aria-label="Next page" disabled={idx >= pages.length - 1} onClick={() => go(idx + 1)}><ChevronRight /></button>
 
-        <div ref={scroll} className="flex-1 overflow-y-auto p-3 sm:p-6 lg:px-14 print:overflow-visible print:p-0">
+        <div ref={scroll} className="flex-1 overflow-auto p-3 sm:p-6 lg:px-14 print:overflow-visible print:p-0">
           {cur && (
+            <div className="guide-zoom" style={zoom === 1 ? undefined : { zoom }}>
             <Sheet code={cur.code} title={cur.title} cats={catList} currentCatId={currentCatId} accent={accent} onOpenCat={openCat} onOpenIndex={() => go(0)} narrow={cur.kind === 'index'}>
               {cur.kind === 'index' && <IndexPage cats={cats} thumbs={catThumbs} open={openCat} />}
-              {cur.kind === 'category' && <CategoryPage cat={{ id: cur.id, name: cur.title }} prods={prodMap} pages={pages} onOpen={openProd} thumbsVersion={0} accent={accent} onGo={(u) => nav(u)} />}
-              {cur.kind === 'product' && (<div className="space-y-4"><GuideIllustration kind="product" pageId={cur.id} pages={pages} onOpen={(u) => nav(u)} accent={accent} /><ProductDetail sheet /></div>)}
-            </Sheet>)}
+              {cur.kind === 'category' && <CategoryPage cat={{ id: cur.id, name: cur.title }} prods={prodMap} pages={pages} onOpen={openProd} thumbsVersion={0} accent={accent} onGo={(u) => nav(u)} onDetails={setDetailId} />}
+              {cur.kind === 'product' && (<div className="space-y-4"><div className="flex justify-end print:hidden"><button type="button" onClick={() => setDetailId(cur.id)} className="inline-flex items-center gap-1.5 border border-steel-300 bg-white px-3 py-1.5 text-sm hover:bg-steel-100"><Info size={16} aria-hidden /> Item details and downloads</button></div><GuideIllustration kind="product" pageId={cur.id} pages={pages} onOpen={(u) => nav(u)} accent={accent} /><ProductDetail sheet /></div>)}
+            </Sheet>
+            </div>)}
         </div>
       </div>
+      {detailId && <ItemDetailsModal id={detailId} onClose={() => setDetailId('')} onOpenPage={openProd} />}
     </div>
   )
 }

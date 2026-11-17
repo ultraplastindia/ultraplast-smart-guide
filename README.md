@@ -74,3 +74,6 @@ Admin, Email settings (Super Admin) stores the key of a mail service (a Gmail Ap
 
 ## Guide illustrations (clickable page codes)
 Admin, Guide illustrations puts a picture on a category page or a product page of the Guide and lets an admin place callouts on it: a label and a page code joined by a line to a part of the picture. In the Guide, clicking a callout opens the page it points to and the code turns red on hover, as on the printed Smart Guide index pages. Pages without a picture are unchanged. It uses migration `0014` and a private `guide-illustrations` bucket. Setup: `DEPLOYMENT.md`, section 15.
+
+## Guide toolbar extras (zoom, item details, product assistance)
+The Guide toolbar has zoom out, zoom in and fit-to-screen. Product cards, table rows and product pages have an Item details and downloads popup (item number, description, unit of measurement, Where to buy, Add to quotation, DWG and STP downloads). The life-ring button opens Additional product assistance: guides and documents for the page, related products and quick links to sprocket, wear strip and transfer plate pages. No new database script is needed. Unit of measurement is read from a specification named Unit of measurement, UoM or Unit; DWG and STP files are CAD documents (Documents, type CAD) whose file name ends in .dwg or .stp.

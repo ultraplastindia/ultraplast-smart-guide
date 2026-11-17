@@ -11,6 +11,7 @@
 }
 
 @media print {
+  .guide-zoom { zoom: 1 !important; }
   body { background: #fff !important; }
   main { padding-bottom: 3rem; }
 }
