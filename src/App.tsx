@@ -4,7 +4,7 @@ import RequireApproved from './components/RequireApproved'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import { Denied, Pending } from './pages/Status'
-import RequirePermission from './components/RequirePermission'
+import RequirePermission, { PanelGate } from './components/RequirePermission'
 import AdminAccess from './pages/AdminAccess'
 import Categories from './pages/Categories'
 import Catalogue from './pages/Catalogue'
@@ -41,18 +41,23 @@ export default function App() {
       <Route path="/share/:token" element={<SharePage />} />
       <Route element={<RequireApproved />}>
         <Route element={<Layout />}>
-          <Route index element={<Home />} />
-          <Route path="categories" element={<Categories />} />
-          <Route path="explorer" element={<Explorer />} />
-          <Route path="guide" element={<Guide />} />
-          <Route path="guide/:kind/:id" element={<Guide />} />
-          <Route path="catalogue" element={<Catalogue />} />
-          <Route path="products/:id" element={<ProductDetail />} />
-          <Route path="compare" element={<Compare />} />
-          <Route path="documents" element={<Documents />} />
-          <Route path="bom" element={<BomPage />} />
-          <Route path="dashboard" element={<Dashboard />} />
+          <Route element={<PanelGate panel="home" />}><Route index element={<Home />} /></Route>
+          <Route element={<PanelGate panel="categories" />}><Route path="categories" element={<Categories />} /></Route>
+          <Route element={<PanelGate panel="explorer" />}><Route path="explorer" element={<Explorer />} /></Route>
+          <Route element={<PanelGate panel="guide" />}>
+            <Route path="guide" element={<Guide />} />
+            <Route path="guide/:kind/:id" element={<Guide />} />
+          </Route>
+          <Route element={<PanelGate panel="catalogue" />}>
+            <Route path="catalogue" element={<Catalogue />} />
+            <Route path="products/:id" element={<ProductDetail />} />
+          </Route>
+          <Route element={<PanelGate panel="compare" />}><Route path="compare" element={<Compare />} /></Route>
+          <Route element={<PanelGate panel="documents" />}><Route path="documents" element={<Documents />} /></Route>
+          <Route element={<PanelGate panel="bom" />}><Route path="bom" element={<BomPage />} /></Route>
+          <Route element={<PanelGate panel="dashboard" />}><Route path="dashboard" element={<Dashboard />} /></Route>
           <Route path="profile" element={<Profile />} />
+          <Route element={<PanelGate panel="admin" />}>
           <Route element={<RequirePermission permission="manage_users" />}>
             <Route path="admin/access" element={<AdminAccess />} />
           </Route>
@@ -79,7 +84,8 @@ export default function App() {
           <Route element={<RequirePermission permission="manage_email_settings" />}>
             <Route path="admin/settings" element={<AdminSettings />} />
           </Route>
-          <Route path="help" element={<Help />} />
+          </Route>
+          <Route element={<PanelGate panel="help" />}><Route path="help" element={<Help />} /></Route>
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

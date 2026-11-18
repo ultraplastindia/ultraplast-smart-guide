@@ -7,22 +7,22 @@ import PrintHeader from './PrintHeader'
 import RfqDrawer from './RfqDrawer'
 
 const NAV = [
-  ['/', 'Home'],
-  ['/categories', 'Categories'],
-  ['/explorer', 'Explorer'],
-  ['/guide', 'Guide'],
-  ['/catalogue', 'Catalogue'],
-  ['/compare', 'Compare'],
-  ['/documents', 'Documents'],
-  ['/bom', 'My BOM'],
-  ['/dashboard', 'Dashboard'],
-  ['/help', 'Help'],
+  ['/', 'Home', 'home'],
+  ['/categories', 'Categories', 'categories'],
+  ['/explorer', 'Explorer', 'explorer'],
+  ['/guide', 'Guide', 'guide'],
+  ['/catalogue', 'Catalogue', 'catalogue'],
+  ['/compare', 'Compare', 'compare'],
+  ['/documents', 'Documents', 'documents'],
+  ['/bom', 'My BOM', 'bom'],
+  ['/dashboard', 'Dashboard', 'dashboard'],
+  ['/help', 'Help', 'help'],
 ] as const
 
 export default function Layout() {
   const [open, setOpen] = useState(false)
   const [logoOk, setLogoOk] = useState(true)
-  const { signOut, session, can } = useAuth()
+  const { signOut, session, can, canPanel } = useAuth()
   const link = ({ isActive }: { isActive: boolean }) =>
     `block px-3 py-2 rounded-sm text-sm font-medium ${isActive ? 'bg-amber-chain text-steel-950' : 'text-steel-100 hover:bg-steel-800'}`
   return (
@@ -47,10 +47,10 @@ export default function Layout() {
             </button>
           </div>
           <nav aria-label="Main" className={`${open ? 'block' : 'hidden'} lg:flex lg:flex-wrap lg:items-center lg:gap-1 border-t border-white/10 py-2 max-h-[70vh] overflow-y-auto lg:overflow-visible`}>
-            {NAV.map(([to, label]) => (
+            {NAV.filter(([, , panel]) => canPanel(panel)).map(([to, label]) => (
               <NavLink key={to} to={to} end={to === '/'} className={link} onClick={() => setOpen(false)}>{label}</NavLink>
             ))}
-            {can('manage_catalogue') && <NavLink to="/admin" end className={link} onClick={() => setOpen(false)}>Admin</NavLink>}
+            {can('manage_catalogue') && canPanel('admin') && <NavLink to="/admin" end className={link} onClick={() => setOpen(false)}>Admin</NavLink>}
             <div className="lg:hidden mt-1 pt-1 border-t border-white/10">
               <NavLink to="/profile" className={link} onClick={() => setOpen(false)}>Profile</NavLink>
               <button onClick={() => void signOut()} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-steel-100 hover:text-white" title={session?.user.email ?? ''}>

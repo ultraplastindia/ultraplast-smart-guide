@@ -19,7 +19,8 @@ Login (password and email code), request access, pending/denied pages; category,
 - `package-lock.json` is not in the repository: run `npm install` once and commit it, because CI uses `npm ci`.
 - Guide illustrations are not included in PDFs or customer share links, and callouts are placed by hand (no automatic import).
 - Table item codes (such as the highlighted VG- codes on a System Plast page) are not clickable.
-- Item details popup and the assistance drawer (GuidePanels.tsx) were tested with mock data only, not against a live Supabase project.
+- Item details popup, assistance drawer, Guide results, automatic illustrations and the panel guards were tested with mock data only, not against a live Supabase project. Script 0015 (panel roles) is untested on a real database.
+- Panel roles hide menus and screens; they are not a data-security boundary (permissions and row-level security are).
 - Rate limiting on admin functions; server-side-only export enforcement.
 - Official logo (add `public/logo.png`); featured/frequently-used sections on the home page.
 - Component tests and end-to-end tests.

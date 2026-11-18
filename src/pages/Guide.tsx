@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, CircleHelp, FileDown, Info, LayoutGrid, LifeBuoy, Link2, List, Maximize2, Printer, Search, ShoppingCart, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { listCategories, thumbsFor } from '../lib/catalogue'
-import { buildPages, categoryCode, findPage, guideUrl, pageIndexByCode, type GuideCat, type GuidePage, type GuideProd } from '../lib/format'
+import { buildPages, categoryCode, findPage, guideUrl, pageIndexByCode, parseParams, type GuideCat, type GuidePage, type GuideProd } from '../lib/format'
 import { LOGO_DATA_URL } from '../lib/logo'
 import { exportCategoryPdf, exportProductPdf } from '../lib/sharePdf'
 import { useRfq } from '../lib/rfq'
@@ -12,7 +12,7 @@ import { CodeBoxes, Frame } from '../components/ImageViewer'
 import { AddToRfqButton } from '../components/RfqDrawer'
 import ShareBar from '../components/ShareBar'
 import GuideIllustration from '../components/GuideIllustration'
-import ItemDetailsModal, { ProductAssist } from '../components/GuidePanels'
+import ItemDetailsModal, { GuideResults, ProductAssist } from '../components/GuidePanels'
 import ProductDetail from './ProductDetail'
 
 const PALETTE = ['#2f9e44', '#1d5a78', '#e3a008', '#8e44ad', '#c0392b', '#16a085', '#2c3e50', '#d35400']
@@ -208,12 +208,12 @@ function CategoryPage({ cat, prods, pages, onOpen, thumbsVersion, accent, onGo, 
   const tab = (v: 'cards' | 'table', label: string) => <button aria-pressed={view === v} onClick={() => setView(v)} className={`px-3 py-1 text-sm border border-steel-300 ${view === v ? 'bg-steel-950 text-white' : 'bg-white hover:bg-steel-100'}`}>{label}</button>
   const filterCell = (v: string | number | null | undefined, qs: (x: string) => string) => (v === null || v === undefined || v === ''
     ? <span className="text-steel-600">{details.size === 0 ? '…' : 'Not available'}</span>
-    : <Link className={CELL_LINK} to={`/catalogue?${qs(String(v))}`} title="See all products with this value" onClick={(e) => e.stopPropagation()}>{String(v)}</Link>)
+    : <Link className={CELL_LINK} to={`/guide?${qs(String(v))}`} title="See all products with this value" onClick={(e) => e.stopPropagation()}>{String(v)}</Link>)
   const enc = encodeURIComponent
   return (
     <div className="space-y-4">
       {cat.id !== 'other' && <ShareBar kind="category" id={cat.id} name={cat.name} />}
-      {cat.id !== 'other' && onGo && <GuideIllustration kind="category" pageId={cat.id} pages={pages} onOpen={onGo} accent={accent} />}
+      {cat.id !== 'other' && onGo && <GuideIllustration kind="category" pageId={cat.id} pages={pages} onOpen={onGo} accent={accent} fallback={{ imageUrl: ids.map((x) => thumbs.get(x)).find(Boolean) ?? null, targets: [...related.slice(0, 3).map((r) => ({ kind: 'category' as const, id: r.id, label: r.name })), ...ids.slice(0, 3).map((x) => ({ kind: 'product' as const, id: x, label: prods.get(x)?.name ?? '' }))] }} />}
 
       <section aria-label={`Index of ${cat.name}`} className="border border-steel-300 rounded-md overflow-hidden">
         <h2 className="bg-steel-100 px-3 py-1.5 text-sm font-bold uppercase tracking-wide text-center">Index {cat.name} · go to:</h2>
@@ -342,6 +342,9 @@ export default function Guide() {
   const go = useCallback((i: number) => { if (pages[i]) { nav(guideUrl(pages[i])); setPanel('') } }, [pages, nav])
   const openCat = (cid: string) => nav(cid === 'other' ? '/guide/c/other' : `/guide/c/${cid}`)
   const openProd = (pid: string) => nav(`/guide/p/${pid}`)
+  const [sp] = useSearchParams()
+  const filters = useMemo(() => parseParams(sp), [sp])
+  const hasFilters = Boolean(filters.q || filters.brand || filters.material || filters.pitch || filters.width || filters.thickness)
   const zoomBy = (d: number) => setZoom((z) => Math.min(2, Math.max(0.5, Math.round((z + d) * 10) / 10)))
 
   useEffect(() => {
@@ -468,7 +471,6 @@ export default function Guide() {
                 <li><b>Page order and codes:</b> the book runs INDEX, then each category (C01, C02 ...) followed by its products. Codes follow the category order set by an administrator.</li><li><b>Search tips:</b> type part of a code (punctuation is ignored) or a few words from the name or specification.</li>
                 <li><b>Request for quotation:</b> add products with Add to quotation, then send the list to Ultraplast.</li><li><b>Click an image</b> on a product page to zoom in or out.</li>
               </ul>
-              <p><Link className="underline" to="/help">Open the full Help page</Link></p>
             </div>
           </div>)}
 
@@ -489,7 +491,7 @@ export default function Guide() {
           {cur && (
             <div className="guide-zoom" style={zoom === 1 ? undefined : { zoom }}>
             <Sheet code={cur.code} title={cur.title} cats={catList} currentCatId={currentCatId} accent={accent} onOpenCat={openCat} onOpenIndex={() => go(0)} narrow={cur.kind === 'index'}>
-              {cur.kind === 'index' && <IndexPage cats={cats} thumbs={catThumbs} open={openCat} />}
+              {cur.kind === 'index' && (hasFilters ? <GuideResults params={filters} onOpen={openProd} onClear={() => nav('/guide')} /> : <IndexPage cats={cats} thumbs={catThumbs} open={openCat} />)}
               {cur.kind === 'category' && <CategoryPage cat={{ id: cur.id, name: cur.title }} prods={prodMap} pages={pages} onOpen={openProd} thumbsVersion={0} accent={accent} onGo={(u) => nav(u)} onDetails={setDetailId} />}
               {cur.kind === 'product' && (<div className="space-y-4"><div className="flex justify-end print:hidden"><button type="button" onClick={() => setDetailId(cur.id)} className="inline-flex items-center gap-1.5 border border-steel-300 bg-white px-3 py-1.5 text-sm hover:bg-steel-100"><Info size={16} aria-hidden /> Item details and downloads</button></div><GuideIllustration kind="product" pageId={cur.id} pages={pages} onOpen={(u) => nav(u)} accent={accent} /><ProductDetail sheet /></div>)}
             </Sheet>

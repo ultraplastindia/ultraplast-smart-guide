@@ -25,12 +25,12 @@ interface Field { label: string; value: string; to?: string; hint?: string }
 const LINK = 'underline decoration-dotted underline-offset-2 hover:text-brand-green'
 
 /** A small clickable card with an icon, like the info boxes on a printed catalogue page. */
-function InfoCard({ icon, to, children }: { icon: React.ReactNode; to: string; children: React.ReactNode }) {
-  return (
-    <Link to={to} className="flex gap-2 items-start border border-steel-300 rounded-md p-2 bg-white text-xs leading-snug hover:shadow-md hover:border-brand-green">
-      <span className="text-brand-green shrink-0" aria-hidden="true">{icon}</span><span className="flex-1">{children}</span>
-    </Link>
-  )
+function InfoCard({ icon, to, children }: { icon: React.ReactNode; to?: string; children: React.ReactNode }) {
+  const inner = <><span className="text-brand-green shrink-0" aria-hidden="true">{icon}</span><span className="flex-1">{children}</span></>
+  // No address: a plain card, used inside the Guide so nobody is sent to another panel.
+  return to
+    ? <Link to={to} className="flex gap-2 items-start border border-steel-300 rounded-md p-2 bg-white text-xs leading-snug hover:shadow-md hover:border-brand-green">{inner}</Link>
+    : <div className="flex gap-2 items-start border border-steel-300 rounded-md p-2 bg-white text-xs leading-snug">{inner}</div>
 }
 
 /** `sheet` shows the product as a catalogue page: go-to column, centre, info cards, and a table of the catalogue below. */
@@ -100,13 +100,13 @@ export default function ProductDetail({ sheet = false }: { sheet?: boolean }) {
     return () => { live = false }
   }, [sheet, categoryId, id])
 
-  if (err) return <p role="alert" className="text-red-700">{err} <Link className="underline" to="/catalogue">Back to catalogue</Link></p>
+  if (err) return <p role="alert" className="text-red-700">{err} <Link className="underline" to={kind ? '/guide' : '/catalogue'}>{kind ? 'Back to the Guide' : 'Back to catalogue'}</Link></p>
   if (!p) return <p role="status" className="text-steel-600">Loading product…</p>
 
   const inGuide = Boolean(kind)
   const toProd = (pid: string) => (inGuide ? `/guide/p/${pid}` : `/products/${pid}`)
   const toCat = (cid: string) => (inGuide ? `/guide/c/${cid}` : `/catalogue?category=${cid}`)
-  const find = (qs: string) => `/catalogue?${qs}`
+  const find = (qs: string) => (inGuide ? `/guide?${qs}` : `/catalogue?${qs}`)
   const enc = encodeURIComponent
   const mm = (v: number | null) => (v === null ? show(null) : `${v} mm`)
   const catNames = show((p.product_category_links ?? []).map((l) => l.product_categories?.name).filter(Boolean).join(', ') || p.product_categories?.name)
@@ -132,7 +132,7 @@ export default function ProductDetail({ sheet = false }: { sheet?: boolean }) {
       {!verified && <p>Not checked against the original catalogue. Check page {show(p.source_page)} before relying on it.</p>}
     </div>
   )
-  const selectionBox = <div className="print:hidden space-y-3 border border-steel-300 bg-white p-3"><h2 className="font-semibold">My selection</h2><AddToBom productId={p.id} /><AddToRfqButton id={p.id} code={p.product_code} name={p.name} /><CompareToggle id={p.id} /></div>
+  const selectionBox = <div className="print:hidden space-y-3 border border-steel-300 bg-white p-3"><h2 className="font-semibold">My selection</h2><AddToBom productId={p.id} hideLinks={inGuide} /><AddToRfqButton id={p.id} code={p.product_code} name={p.name} /><CompareToggle id={p.id} hideLinks={inGuide} /></div>
   const techBlock = (
     <section aria-labelledby="td"><h2 id="td" className="font-semibold mb-2">Technical data</h2>
       <dl className="grid sm:grid-cols-2 gap-px bg-steel-300 border border-steel-300">
@@ -157,7 +157,7 @@ export default function ProductDetail({ sheet = false }: { sheet?: boolean }) {
     <section aria-labelledby="dc"><h2 id="dc" className="font-semibold mb-1">Documents</h2>
       {allDocs.length === 0 ? <p className="text-sm text-steel-600">{show(null)}</p> : (
         <ul className="text-sm space-y-1">{allDocs.map((d) => <li key={d.id}>{d.title} <span className="text-steel-600">({d.doc_type})</span> <button className="underline ml-1" onClick={() => void openDocument('technical-documents', d.storage_path).catch((e: Error) => setErr(e.message))}>Download</button></li>)}</ul>)}
-      <p className="mt-1 text-xs"><Link className="underline" to={`/documents?q=${encodeURIComponent(p.product_code)}`}>All documents for this product</Link></p>
+      {!inGuide && <p className="mt-1 text-xs"><Link className="underline" to={`/documents?q=${encodeURIComponent(p.product_code)}`}>All documents for this product</Link></p>}
     </section>
   )
 
@@ -184,7 +184,7 @@ export default function ProductDetail({ sheet = false }: { sheet?: boolean }) {
           <aside aria-label="Information" className="space-y-3 order-3">
             {statusBox}
             {p.product_category_links.slice(0, 4).map((l) => <InfoCard key={l.category_id} icon={<Info size={20} />} to={toCat(l.category_id)}>Introduction to <b>{l.product_categories?.name}</b>. Go to the catalogue.</InfoCard>)}
-            <InfoCard icon={<FileText size={20} />} to={`/documents?q=${enc(p.product_code)}`}>Documents: <b>{allDocs.length}</b> file{allDocs.length === 1 ? '' : 's'}. Go to documents.</InfoCard>
+            <InfoCard icon={<FileText size={20} />} to={inGuide ? undefined : `/documents?q=${enc(p.product_code)}`}>Documents: <b>{allDocs.length}</b> file{allDocs.length === 1 ? '' : 's'}. {inGuide ? 'Listed with download buttons in this page.' : 'Go to documents.'}</InfoCard>
             {selectionBox}
           </aside>
         </div>

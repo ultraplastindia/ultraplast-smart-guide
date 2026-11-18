@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { NA, PAGE_SIZE, buildPages, clampPct, pointToPct, resolveCallouts, type Callout, findPage, guideUrl, isEmail, isOtpCode, mailResult, pageCount, pageIndexByCode, parseEmailList, parseParams, show, toRpcArgs, type MailLogRow } from '../src/lib/format'
+import { NA, PAGE_SIZE, buildPages, autoCallouts, clampPct, pointToPct, resolveCallouts, type Callout, findPage, guideUrl, isEmail, isOtpCode, mailResult, pageCount, pageIndexByCode, parseEmailList, parseParams, show, toRpcArgs, type MailLogRow } from '../src/lib/format'
 
 describe('catalogue helpers', () => {
   it('shows "Not available" for missing values, never invents data', () => {
@@ -99,5 +99,25 @@ describe('guide illustration callouts', () => {
   it('gives each callout the code and address of the page it opens, and drops callouts whose page is gone', () => {
     const out = resolveCallouts([call({ id: 'a' }), call({ id: 'b', targetKind: 'category', targetId: 'c1' }), call({ id: 'c', targetId: 'gone' })], pages)
     expect(out.map((o) => [o.id, o.code, o.url])).toEqual([['a', '54060A', '/guide/p/p1'], ['b', 'C01', '/guide/c/c1']])
+  })
+})
+
+describe('automatic illustration layout', () => {
+  const t = (n: number) => Array.from({ length: n }, (_, i) => ({ kind: 'product' as const, id: `p${i}`, label: `Part ${i}` }))
+  it('puts labels on both sides, alternating, and never more than the maximum', () => {
+    const out = autoCallouts(t(9), 6)
+    expect(out).toHaveLength(6)
+    expect(out.filter((c) => c.lx < 50)).toHaveLength(3)
+    expect(out.filter((c) => c.lx > 50)).toHaveLength(3)
+  })
+  it('keeps every position inside the picture and each pointer near the middle', () => {
+    for (const c of autoCallouts(t(6))) {
+      for (const v of [c.px, c.py, c.lx, c.ly]) { expect(v).toBeGreaterThanOrEqual(0); expect(v).toBeLessThanOrEqual(100) }
+      expect(c.px).toBeGreaterThanOrEqual(35); expect(c.px).toBeLessThanOrEqual(65)
+    }
+  })
+  it('centres a single label and returns nothing for no targets', () => {
+    expect(autoCallouts(t(1))[0].ly).toBe(50)
+    expect(autoCallouts([])).toEqual([])
   })
 })

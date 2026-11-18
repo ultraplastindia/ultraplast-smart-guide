@@ -48,3 +48,16 @@ export function availableActions(status: AccessStatus, callerRole: AppRole | nul
     default: return []
   }
 }
+
+/** The panels (menu sections) an account can be given. Admin sub-screens still follow their own permissions. */
+export const PANELS = [
+  ['home', 'Home', '/'], ['categories', 'Categories', '/categories'], ['explorer', 'Explorer', '/explorer'], ['guide', 'Guide', '/guide'],
+  ['catalogue', 'Catalogue', '/catalogue'], ['compare', 'Compare', '/compare'], ['documents', 'Documents', '/documents'],
+  ['bom', 'My BOM', '/bom'], ['dashboard', 'Dashboard', '/dashboard'], ['help', 'Help', '/help'], ['admin', 'Admin', '/admin'],
+] as const
+export type PanelKey = (typeof PANELS)[number][0]
+
+/** panels is null when the person has no panel role (every panel). Super Admins always see every panel. */
+export function canSeePanel(panels: readonly string[] | null, role: AppRole | null, key: string): boolean {
+  return role === 'super_admin' || panels === null || panels.includes(key)
+}

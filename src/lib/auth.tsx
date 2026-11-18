@@ -1,16 +1,19 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
-import { canAccessProtected, fallbackStatus, type AccessStatus, type AppRole } from './access'
+import { canAccessProtected, canSeePanel, fallbackStatus, type AccessStatus, type AppRole } from './access'
 
 interface AuthState {
   session: Session | null
   status: AccessStatus
   role: AppRole | null
   permissions: string[]
+  /** Panels this account can see. null = every panel (no panel role assigned). */
+  panels: string[] | null
   loading: boolean
   allowed: boolean
   can: (permission: string) => boolean
+  canPanel: (panel: string) => boolean
   signOut: () => Promise<void>
   refresh: () => Promise<void>
 }
@@ -22,11 +25,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AccessStatus>('pending_verification')
   const [role, setRole] = useState<AppRole | null>(null)
   const [permissions, setPermissions] = useState<string[]>([])
+  const [panels, setPanels] = useState<string[] | null>(null)
   const [loading, setLoading] = useState(true)
 
   const loadAccess = useCallback(async (s: Session | null) => {
     if (!s) {
-      setStatus('pending_verification'); setRole(null); setPermissions([])
+      setStatus('pending_verification'); setRole(null); setPermissions([]); setPanels(null)
       return
     }
     // Server decides: my_access() is a security-definer function. On any error we fail closed.
@@ -38,6 +42,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus(data.status as AccessStatus)
     setRole((data.role as AppRole | null) ?? null)
     setPermissions(Array.isArray(data.permissions) ? (data.permissions as string[]) : [])
+    // Panel role (0015). Any error, or no role assigned, means every panel, so nothing breaks before the script is run.
+    const pn = await supabase.rpc('my_panels')
+    setPanels(!pn.error && Array.isArray(pn.data) ? (pn.data as string[]) : null)
   }, [])
 
   useEffect(() => {
@@ -56,12 +63,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthState>(() => {
     const allowed = canAccessProtected(Boolean(session), Boolean(session?.user.email_confirmed_at), status)
     return {
-      session, status, role, permissions, loading, allowed,
+      session, status, role, permissions, panels, loading, allowed,
       can: (p) => allowed && permissions.includes(p),
+      canPanel: (k) => allowed && canSeePanel(panels, role, k),
       signOut: async () => { await supabase.auth.signOut() },
       refresh: () => loadAccess(session),
     }
-  }, [session, status, role, permissions, loading, loadAccess])
+  }, [session, status, role, permissions, panels, loading, loadAccess])
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
 

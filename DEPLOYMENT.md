@@ -99,3 +99,17 @@ Optional. It lets a category page or a product page of the Guide show a picture 
 4. **Check it.** Open the Guide, go to that category or product. Click a code: the page opens. Hovering turns the code red.
 
 To undo: remove the illustration on the same admin page. To remove the feature completely, run `drop table public.guide_callouts, public.guide_illustrations;` and delete the `guide-illustrations` bucket.
+
+
+## 16. Panel roles: choose which panels each person sees (migration 0015)
+
+Optional. It lets a Super Admin create roles (for example User, Admin, Guide only) and choose which panels each role can see. A person with no role sees every panel, exactly as before.
+
+1. **Run the SQL.** In Supabase open **SQL Editor**, paste the whole file `supabase/migrations/0015_panel_roles.sql` and press **Run**. Run it once. It adds two tables, four functions and three starting roles (User, Admin, Guide only).
+2. **Create or change roles (Super Admin).** Open **Admin, User access**, go to **Roles and panels**, press **New role** (or Edit), tick the panels and save.
+3. **Give a person a role.** In the **Users** table use the **Panels** drop-down on that person's row. Choose **All panels** to remove the role.
+4. **Check it.** Sign in as that person. The menu shows only their panels. A panel that is not theirs shows a message in place; nobody is redirected to another panel.
+
+Panels control the menu and the screens. What a person may read or change is still decided by their permissions, which the database enforces. The Guide is self-contained: inside it, filter links, documents, BOM and compare buttons no longer send anyone to Catalogue, Documents, My BOM or Compare.
+
+To remove the feature: `drop table public.user_panel_roles, public.panel_roles;` (the functions can stay).

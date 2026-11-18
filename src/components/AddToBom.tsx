@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { MAX_COMPARE, useCompare } from '../lib/compare'
 
-export function CompareToggle({ id }: { id: string }) {
+export function CompareToggle({ id, hideLinks = false }: { id: string; hideLinks?: boolean }) {
   const { ids, toggle } = useCompare()
   const on = ids.includes(id)
   return (
@@ -11,13 +11,13 @@ export function CompareToggle({ id }: { id: string }) {
       <button onClick={() => toggle(id)} disabled={!on && ids.length >= MAX_COMPARE} className="border border-steel-300 bg-white px-3 py-2 hover:bg-steel-100 disabled:opacity-50">
         {on ? 'Remove from comparison' : 'Add to comparison'}
       </button>
-      {ids.length > 0 && <Link to="/compare" className="ml-3 underline">Compare {ids.length}</Link>}
+      {!hideLinks && ids.length > 0 && <Link to="/compare" className="ml-3 underline">Compare {ids.length}</Link>}
       {!on && ids.length >= MAX_COMPARE && <p className="text-steel-600 mt-1">You can compare up to {MAX_COMPARE} products.</p>}
     </div>
   )
 }
 
-export default function AddToBom({ productId }: { productId: string }) {
+export default function AddToBom({ productId, hideLinks = false }: { productId: string; hideLinks?: boolean }) {
   const [boms, setBoms] = useState<{ id: string; name: string; reference: string }[]>([])
   const [bom, setBom] = useState('')
   const [qty, setQty] = useState(1)
@@ -62,7 +62,7 @@ export default function AddToBom({ productId }: { productId: string }) {
           <input id="aq" type="number" min={1} max={100000} className={`${f} w-20`} value={qty} onChange={(e) => setQty(Math.max(1, Math.min(100000, Number(e.target.value) || 1)))} /></div>
         <button onClick={() => void add()} disabled={busy} className="bg-belt-700 text-white px-4 py-2 disabled:opacity-60">Add to BOM</button>
       </div>
-      {msg && <p role="status" className={msg.ok ? 'text-green-800' : 'text-red-700'}>{msg.text} {msg.ok && <Link className="underline" to="/bom">Open BOM</Link>}</p>}
+      {msg && <p role="status" className={msg.ok ? 'text-green-800' : 'text-red-700'}>{msg.text} {msg.ok && !hideLinks && <Link className="underline" to="/bom">Open BOM</Link>}</p>}
     </div>
   )
 }

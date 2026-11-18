@@ -104,6 +104,19 @@ export function resolveCallouts(callouts: Callout[], pages: GuidePage[]): Resolv
   })
 }
 
+export interface AutoTarget { kind: 'category' | 'product'; id: string; label: string }
+
+/** Automatic illustration: labels on both sides of the picture, each joined to a spot near the middle. Left and right alternate. */
+export function autoCallouts(targets: AutoTarget[], max = 6): Callout[] {
+  const list = targets.slice(0, max)
+  const left = list.filter((_, i) => i % 2 === 0), right = list.filter((_, i) => i % 2 === 1)
+  const place = (side: AutoTarget[], lx: number, px: number): Callout[] => side.map((t, j) => {
+    const ly = side.length === 1 ? 50 : 16 + (j * 68) / (side.length - 1)
+    return { id: `auto-${t.kind}-${t.id}`, label: t.label.slice(0, 40), targetKind: t.kind, targetId: t.id, px, py: clampPct(ly), lx, ly: clampPct(ly) }
+  })
+  return [...place(left, 13, 40), ...place(right, 87, 60)]
+}
+
 // ---- Email settings and sign-in codes ----
 export const isEmail = (s: string) => s.length <= 254 && /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/.test(s)
 

@@ -5,7 +5,8 @@ import { useAuth } from '../lib/auth'
 import { useRfq } from '../lib/rfq'
 import { openDocument } from '../lib/catalogue'
 import { CodeBoxes } from './ImageViewer'
-import type { GuidePage } from '../lib/format'
+import { searchProducts, type ProductRow } from '../lib/catalogue'
+import type { CatalogueParams, GuidePage } from '../lib/format'
 
 interface Spec { spec_key: string; spec_value: string; unit: string | null }
 interface Doc { id: string; title: string; doc_type: string; storage_path: string }
@@ -187,5 +188,52 @@ export function ProductAssist({ cur, pages, onGo, onClose }: { cur: GuidePage | 
           </Group>)
       })}
     </aside>
+  )
+}
+
+/** Products matching a clicked value (brand, material, pitch, width, thickness, colour) shown inside the Guide, so nobody is sent to another panel. */
+export function GuideResults({ params, onOpen, onClear }: { params: CatalogueParams; onOpen: (id: string) => void; onClear: () => void }) {
+  const rfq = useRfq()
+  const key = JSON.stringify({ ...params, page: 1 })
+  const [pg, setPg] = useState({ key, page: 1 })
+  const page = pg.key === key ? pg.page : 1
+  const [rows, setRows] = useState<ProductRow[]>([])
+  const [total, setTotal] = useState(0)
+  const [busy, setBusy] = useState(true)
+  const [err, setErr] = useState('')
+  useEffect(() => {
+    let live = true
+    setBusy(true); setErr('')
+    searchProducts({ ...params, page }).then((d) => { if (!live) return; setRows((cur) => (page === 1 ? d.items : [...cur, ...d.items])); setTotal(d.total); setBusy(false) })
+      .catch((e: Error) => { if (live) { setErr(e.message); setBusy(false) } })
+    return () => { live = false }
+  }, [key, page]) // eslint-disable-line react-hooks/exhaustive-deps
+  const chips = ([['Search', params.q], ['Brand', params.brand], ['Material', params.material], ['Pitch', params.pitch && `${params.pitch} mm`], ['Width', params.width && `${params.width} mm`], ['Thickness', params.thickness && `${params.thickness} mm`]] as [string, string][]).filter(([, v]) => v)
+  return (
+    <section aria-label="Matching products" className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="font-bold uppercase tracking-wide text-sm">Products with</h2>
+        {chips.map(([k, v]) => <span key={k} className="bg-steel-100 border border-steel-300 rounded px-2 py-0.5 text-sm">{k}: <b>{v}</b></span>)}
+        <button className="ml-auto border border-steel-300 px-3 py-1 text-sm hover:bg-steel-100" onClick={onClear}>Back to the index</button>
+      </div>
+      {err && <p role="alert" className="text-red-700 text-sm">{err}</p>}
+      {!err && !busy && rows.length === 0 && <p className="text-steel-600">No products match.</p>}
+      {rows.length > 0 && (
+        <div className="overflow-x-auto border border-steel-300 rounded-md">
+          <table className="w-full text-sm">
+            <thead className="bg-steel-100 text-left"><tr>{['Code', 'Name', 'Category', 'Brand', 'Material', ''].map((h, i) => <th key={i} className="px-3 py-2 whitespace-nowrap">{h}</th>)}</tr></thead>
+            <tbody>{rows.map((r) => (
+              <tr key={r.id} className="border-t border-steel-300 hover:bg-belt-100 cursor-pointer" onClick={() => onOpen(r.id)}>
+                <td className="px-3 py-2 font-mono font-bold whitespace-nowrap">{r.product_code}</td><td className="px-3 py-2">{r.name}</td>
+                <td className="px-3 py-2">{r.category_name ?? 'Not available'}</td><td className="px-3 py-2">{r.brand ?? 'Not available'}</td><td className="px-3 py-2">{r.material ?? 'Not available'}</td>
+                <td className="px-3 py-2 whitespace-nowrap"><button className="border border-brand-green text-brand-green px-2 py-1 text-xs hover:bg-brand-green hover:text-white" onClick={(e) => { e.stopPropagation(); rfq.add({ id: r.id, code: r.product_code, name: r.name }) }}>Add to quotation</button></td>
+              </tr>))}</tbody>
+          </table>
+        </div>)}
+      <div className="flex items-center gap-3 text-sm">
+        <span className="text-steel-600" role="status">{busy ? 'Loading…' : `${rows.length} of ${total}`}</span>
+        {!busy && rows.length < total && <button className="border border-steel-300 px-3 py-1 hover:bg-steel-100" onClick={() => setPg({ key, page: page + 1 })}>Show more</button>}
+      </div>
+    </section>
   )
 }
