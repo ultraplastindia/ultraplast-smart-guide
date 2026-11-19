@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { thumbsFor } from '../lib/catalogue'
+import { ZoomArea } from './GuidePanels'
 import { autoCallouts, findPage, resolveCallouts, type AutoTarget, type Callout, type GuidePage } from '../lib/format'
 
 export interface IllustrationData { id: string; url: string; callouts: Callout[] }
@@ -83,6 +84,7 @@ export default function GuideIllustration({ kind, pageId, pages, onOpen, accent 
   if (isAuto && items.length === 0) return null
   return (
     <section aria-label="Illustration. Click a code to open that page." className="mx-auto w-full max-w-3xl">
+      <ZoomArea label="Catalogue picture." hint="Click the picture to zoom in. Click a code to open that page." resetKey={url}>
       <div className={`relative select-none ${isAuto ? 'aspect-[16/10] bg-white border border-steel-300 rounded-md' : ''}`}>
         {isAuto
           ? <img src={url} alt="Illustration of this page" draggable={false} className="absolute left-[27%] top-[6%] h-[88%] w-[46%] object-contain" />
@@ -106,6 +108,7 @@ export default function GuideIllustration({ kind, pageId, pages, onOpen, accent 
             </span>)
         })}
       </div>
+      </ZoomArea>
     </section>
   )
 }

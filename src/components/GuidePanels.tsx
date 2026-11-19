@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as RKey, type MouseEvent as RMouse, type PointerEvent as RPointer, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as RKey, type MouseEvent as RMouse, type PointerEvent as RPointer, type ReactNode } from 'react'
 import { ExternalLink, Globe, ShoppingCart, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
@@ -302,18 +302,32 @@ export function PageStage({ resetKey, drawer, children }: { resetKey: string; dr
   )
 }
 
-/** Shared zoom level between the toolbar buttons and the catalogue page picture on the page. */
-export const ZoomCtx = createContext<{ level: number; setLevel: (n: number) => void; register: (delta: number) => void } | null>(null)
+/** What each zoomable catalogue picture tells the toolbar. Each picture keeps its own zoom level. */
+export interface ZoomApi { report: (id: string, level: number, set: (n: number) => void) => void; release: (id: string) => void; claim: (id: string) => void }
+export const ZoomCtx = createContext<ZoomApi | null>(null)
+
+/** Keeps track of the zoomable pictures on the page. The toolbar zoom buttons act on the picture you last pointed at. */
+export function useZoomRegistry() {
+  const [areas, setAreas] = useState<Record<string, { level: number; set: (n: number) => void }>>({})
+  const [activeId, setActiveId] = useState('')
+  const value = useMemo<ZoomApi>(() => ({
+    report: (id, level, set) => setAreas((a) => (a[id] && a[id].level === level && a[id].set === set ? a : { ...a, [id]: { level, set } })),
+    release: (id) => setAreas((a) => { if (!(id in a)) return a; const rest = { ...a }; delete rest[id]; return rest }),
+    claim: (id) => setActiveId(id),
+  }), [])
+  const ids = Object.keys(areas)
+  const active = areas[activeId] ?? (ids.length > 0 ? areas[ids[ids.length - 1]] : null)
+  return { value, active, hasZoom: ids.length > 0 }
+}
 
 /**
- * The catalogue page picture. Click it to zoom to 2x, then 3x, then back to fit, exactly where you click.
- * While zoomed the picture follows the mouse, so there are no scroll bars. Only this picture zooms.
+ * A catalogue picture you can zoom. Click it to zoom to 2x, then 3x, then back to fit, exactly where you click.
+ * While zoomed the picture follows the mouse, so there are no scroll bars. Links and buttons inside it (callouts) keep working and zoom with it.
  */
-export function ZoomImage({ src, alt, onFullScreen }: { src: string; alt: string; onFullScreen?: () => void }) {
+export function ZoomArea({ label, hint, fill, boxStyle, resetKey, onFullScreen, children }: { label: string; hint: string; fill?: boolean; boxStyle?: CSSProperties; resetKey?: string; onFullScreen?: () => void; children: ReactNode }) {
   const ctx = useContext(ZoomCtx)
-  const [own, setOwn] = useState(1)
-  const level = ctx ? ctx.level : own
-  const setLevel = ctx ? ctx.setLevel : setOwn
+  const id = useId()
+  const [level, setLevel] = useState(1)
   const box = useRef<HTMLDivElement>(null)
   const mouse = useRef<{ x: number; y: number } | null>(null)
   const raf = useRef(0)
@@ -321,12 +335,12 @@ export function ZoomImage({ src, alt, onFullScreen }: { src: string; alt: string
   const [size, setSize] = useState({ w: 600, h: 500 })
   const [pos, setPos] = useState({ x: 0, y: 0 })
   const [fast, setFast] = useState(false)
-  const [ratio, setRatio] = useState(1.3)
   const levelNow = useRef(level)
   levelNow.current = level
 
-  useEffect(() => { ctx?.register(1); return () => ctx?.register(-1) }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { setLevel(1) }, [src]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { ctx?.report(id, level, setLevel) }, [level]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => ctx?.release(id), []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setLevel(1) }, [resetKey])
   useLayoutEffect(() => {
     const el = box.current
     if (!el) return
@@ -335,7 +349,7 @@ export function ZoomImage({ src, alt, onFullScreen }: { src: string; alt: string
     const ro = new ResizeObserver(read)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [ratio])
+  }, [])
 
   // The picture point under the cursor stays under the cursor, so a click zooms exactly where it points.
   const place = (mx: number, my: number, lv: number) => ({ x: mx * (1 - lv), y: my * (1 - lv) })
@@ -348,6 +362,7 @@ export function ZoomImage({ src, alt, onFullScreen }: { src: string; alt: string
 
   const rel = (cx: number, cy: number) => { const r = box.current?.getBoundingClientRect(); return r ? { x: cx - r.left, y: cy - r.top } : { x: size.w / 2, y: size.h / 2 } }
   const next = () => setLevel(level >= MAX_LEVEL ? 1 : level + 1)
+  const claim = () => ctx?.claim(id)
   const onMove = (e: RMouse) => {
     const m = rel(e.clientX, e.clientY)
     mouse.current = m
@@ -355,6 +370,7 @@ export function ZoomImage({ src, alt, onFullScreen }: { src: string; alt: string
   }
   const lim = (v: number, len: number) => clamp(v, len * (1 - level), 0)
   const onKey = (e: RKey) => {
+    if (e.target !== e.currentTarget) return
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); next() }
     else if (e.key === 'Escape' && level > 1) { e.preventDefault(); setLevel(1) }
     else if (level > 1 && e.key.startsWith('Arrow')) {
@@ -376,21 +392,33 @@ export function ZoomImage({ src, alt, onFullScreen }: { src: string; alt: string
   const btn = 'border border-steel-300 bg-white px-2 py-1 text-xs hover:bg-steel-100 disabled:opacity-40'
   return (
     <div className="space-y-1.5">
-      <div ref={box} role="button" tabIndex={0} aria-label={`${alt}. Click to zoom. Now ${level}x.`} onClick={(e) => { mouse.current = rel(e.clientX, e.clientY); next() }} onMouseMove={onMove} onKeyDown={onKey}
+      <div ref={box} role="group" tabIndex={0} aria-label={`${label} Now ${level}x.`} data-zoom-area
+        onClick={(e) => { claim(); if ((e.target as HTMLElement).closest('button,a,input,select,textarea,[data-nozoom]')) return; mouse.current = rel(e.clientX, e.clientY); next() }}
+        onMouseEnter={claim} onFocus={claim} onMouseMove={onMove} onKeyDown={onKey}
         onPointerDown={down} onPointerMove={dragMove} onPointerUp={() => { drag.current = null }} onPointerCancel={() => { drag.current = null }}
-        className="relative w-full overflow-hidden border border-steel-300 bg-white select-none outline-none focus-visible:ring-2 focus-visible:ring-amber-500" style={{ aspectRatio: `${1 / ratio}`, maxHeight: '78vh', cursor: level >= MAX_LEVEL ? 'zoom-out' : 'zoom-in', touchAction: level > 1 ? 'none' : 'pan-y' }}>
-        <div style={{ width: '100%', height: '100%', transform: `translate(${pos.x}px, ${pos.y}px) scale(${level})`, transformOrigin: '0 0', transition: fast ? 'transform 0.12s ease-out' : 'transform 0.4s cubic-bezier(.22,.8,.3,1)' }}>
-          <img src={src} alt={alt} draggable={false} onLoad={(e) => { const i = e.currentTarget; if (i.naturalWidth > 0) setRatio(clamp(i.naturalHeight / i.naturalWidth, 0.5, 2)) }} className="h-full w-full object-contain" />
+        className="relative w-full overflow-hidden select-none outline-none focus-visible:ring-2 focus-visible:ring-amber-500" style={{ ...boxStyle, cursor: level >= MAX_LEVEL ? 'zoom-out' : 'zoom-in', touchAction: level > 1 ? 'none' : 'pan-y' }}>
+        <div style={{ width: '100%', height: fill ? '100%' : undefined, transform: `translate(${pos.x}px, ${pos.y}px) scale(${level})`, transformOrigin: '0 0', transition: fast ? 'transform 0.12s ease-out' : 'transform 0.4s cubic-bezier(.22,.8,.3,1)' }}>
+          {children}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-1.5 text-xs text-steel-800 print:hidden">
-        <span aria-live="polite" className="mr-auto">{level === 1 ? 'Click the catalogue page to zoom in.' : `${level}x. Move the mouse to look around. Click to ${level >= MAX_LEVEL ? 'return to fit' : 'zoom more'}.`}</span>
-        <button type="button" className={btn} disabled={level <= 1} onClick={() => setLevel(level - 1)}>Zoom out</button>
-        <button type="button" className={btn} disabled={level >= MAX_LEVEL} onClick={() => { mouse.current = null; setLevel(level + 1) }}>Zoom in</button>
+        <span aria-live="polite" className="mr-auto">{level === 1 ? hint : `${level}x. Move the mouse to look around. Click to ${level >= MAX_LEVEL ? 'return to fit' : 'zoom more'}.`}</span>
+        <button type="button" className={btn} disabled={level <= 1} onClick={() => { claim(); setLevel(level - 1) }}>Zoom out</button>
+        <button type="button" className={btn} disabled={level >= MAX_LEVEL} onClick={() => { claim(); mouse.current = null; setLevel(level + 1) }}>Zoom in</button>
         <button type="button" className={btn} disabled={level === 1} onClick={() => setLevel(1)}>Fit</button>
         {onFullScreen && <button type="button" className={btn} onClick={onFullScreen}>Full screen</button>}
       </div>
     </div>
+  )
+}
+
+/** The catalogue page picture of a product, zoomable. */
+export function ZoomImage({ src, alt, onFullScreen }: { src: string; alt: string; onFullScreen?: () => void }) {
+  const [ratio, setRatio] = useState(1.3)
+  return (
+    <ZoomArea label={`${alt}. Click to zoom.`} hint="Click the catalogue page to zoom in." fill resetKey={src} onFullScreen={onFullScreen} boxStyle={{ aspectRatio: `${1 / ratio}`, maxHeight: '78vh', background: '#fff', border: '1px solid #cfd6dc' }}>
+      <img src={src} alt={alt} draggable={false} onLoad={(e) => { const i = e.currentTarget; if (i.naturalWidth > 0) setRatio(clamp(i.naturalHeight / i.naturalWidth, 0.5, 2)) }} className="h-full w-full object-contain" />
+    </ZoomArea>
   )
 }
 
@@ -469,7 +497,7 @@ export function LegendOverlay({ onClose, onFullHelp }: { onClose: () => void; on
         <ul className="space-y-2">
           <Row glyph={<span className="inline-flex gap-px">{[...'C01'].map((c, i) => <span key={i} className={box}>{c}</span>)}</span>}>Page code in boxes. Click it to open that page.</Row>
           <Row glyph={<span className="border-2 border-[#F59E0B] px-1 font-mono font-bold">S815-K450</span>}>Item code in a table. Click it to add the item to your quotation.</Row>
-          <Row glyph={<span className="font-bold">Click picture</span>}>Click the catalogue page picture to zoom to 2x, then 3x, then back to fit. While zoomed, move the mouse to look around.</Row>
+          <Row glyph={<span className="font-bold">Click picture</span>}>Click a catalogue picture to zoom to 2x, then 3x, then back to fit. Codes on it still open their pages. While zoomed, move the mouse to look around.</Row>
           <Row glyph={<span className="font-bold">Top edge</span>}>Move the mouse to the top edge of the page to open the section menu.</Row>
           <Row glyph={<span className="inline-block h-6 w-6 rounded-full" style={{ background: 'conic-gradient(#2f9e44 0 25%, #1d5a78 0 50%, #e3a008 0 75%, #8e44ad 0)' }} />}>Colour wheel: point at a wedge for its name, click to open the category.</Row>
           <Row glyph={<span className="rounded bg-green-200 px-1.5 text-xs font-semibold text-green-900">Verified</span>}>Data was checked against the original catalogue. Not available means the data is not in the system.</Row>
