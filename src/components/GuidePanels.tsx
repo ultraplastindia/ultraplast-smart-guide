@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as RMouse, type PointerEvent as RPointer, type ReactNode } from 'react'
 import { ExternalLink, Globe, ShoppingCart, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
@@ -224,7 +224,7 @@ export function GuideResults({ params, onOpen, onClear }: { params: CataloguePar
             <thead className="bg-steel-100 text-left"><tr>{['Code', 'Name', 'Category', 'Brand', 'Material', ''].map((h, i) => <th key={i} className="px-3 py-2 whitespace-nowrap">{h}</th>)}</tr></thead>
             <tbody>{rows.map((r) => (
               <tr key={r.id} className="border-t border-steel-300 hover:bg-belt-100 cursor-pointer" onClick={() => onOpen(r.id)}>
-                <td className="px-3 py-2 font-mono font-bold whitespace-nowrap">{r.product_code}</td><td className="px-3 py-2">{r.name}</td>
+                <td className="px-3 py-2 whitespace-nowrap hover:outline hover:outline-2 hover:-outline-offset-2 hover:outline-[#F59E0B]"><SkuCode id={r.id} code={r.product_code} name={r.name} onOpen={() => onOpen(r.id)} /></td><td className="px-3 py-2">{r.name}</td>
                 <td className="px-3 py-2">{r.category_name ?? 'Not available'}</td><td className="px-3 py-2">{r.brand ?? 'Not available'}</td><td className="px-3 py-2">{r.material ?? 'Not available'}</td>
                 <td className="px-3 py-2 whitespace-nowrap"><button className="border border-brand-green text-brand-green px-2 py-1 text-xs hover:bg-brand-green hover:text-white" onClick={(e) => { e.stopPropagation(); rfq.add({ id: r.id, code: r.product_code, name: r.name }) }}>Add to quotation</button></td>
               </tr>))}</tbody>
@@ -235,5 +235,204 @@ export function GuideResults({ params, onOpen, onClear }: { params: CataloguePar
         {!busy && rows.length < total && <button className="border border-steel-300 px-3 py-1 hover:bg-steel-100" onClick={() => setPg({ key, page: page + 1 })}>Show more</button>}
       </div>
     </section>
+  )
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Technical-catalogue viewer pieces: the page stage (click to zoom, mouse-follow pan, top-edge drawer,
+ * page-change spinner), the category wheel, quick-add item codes and the legend overlay.
+ * ---------------------------------------------------------------------------------------------- */
+const clamp = (n: number, a: number, b: number) => Math.min(b, Math.max(a, n))
+// Things a click must reach untouched: links, buttons, hotspots, table rows that open pages, form fields.
+const INTERACTIVE = 'a,button,input,select,textarea,label,summary,[role="button"],[role="dialog"],[data-nozoom],.cursor-pointer'
+export const MAX_LEVEL = 3
+
+/**
+ * The grey stage with the white page. The page has a fixed design width and is scaled to fit. Click it to zoom
+ * 1x, 2x, 3x and back; while zoomed the page follows the mouse, so there are no scroll bars to use.
+ */
+export function PageStage({ level, onLevel, resetKey, drawer, children }: { level: number; onLevel: (n: number) => void; resetKey: string; drawer?: ReactNode; children: ReactNode }) {
+  const stage = useRef<HTMLDivElement>(null)
+  const frame = useRef<HTMLDivElement>(null)
+  const mouse = useRef<{ x: number; y: number } | null>(null)
+  const hold = useRef(false)
+  const raf = useRef(0)
+  const drag = useRef<{ x: number; y: number } | null>(null)
+  const [size, setSize] = useState({ w: 1000, h: 700 })
+  const [pos, setPos] = useState({ x: 0, y: 0 })
+  const [fast, setFast] = useState(false)
+  const [edge, setEdge] = useState(false)
+  const [busy, setBusy] = useState(true)
+
+  useLayoutEffect(() => {
+    const el = stage.current
+    if (!el) return
+    const read = () => setSize({ w: el.clientWidth, h: el.clientHeight })
+    read()
+    const ro = new ResizeObserver(read)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const small = size.w < 760
+  const W = small ? Math.max(320, size.w - 16) : 1000
+  const s0 = Math.min(1, (size.w - (small ? 16 : 96)) / W)
+  const fitW = W * s0, fitH = Math.max(200, size.h - 24)
+  const fitLeft = (size.w - fitW) / 2, fitTop = (size.h - fitH) / 2
+
+  // The page point under the cursor is the same share of the page as the cursor is of the fitted page, so a click zooms exactly where it points.
+  const place = (mx: number, my: number, lv: number) => {
+    const cw = fitW * lv, ch = fitH * lv
+    const ux = clamp((mx - fitLeft) / fitW, 0, 1), uy = clamp((my - fitTop) / fitH, 0, 1)
+    return {
+      x: cw <= size.w ? (size.w - cw) / 2 : clamp(mx - ux * cw, size.w - cw, 0),
+      y: ch <= size.h ? (size.h - ch) / 2 : clamp(my - uy * ch, size.h - ch, 0),
+    }
+  }
+
+  useEffect(() => {
+    const m = mouse.current ?? { x: size.w / 2, y: size.h / 2 }
+    setFast(false)
+    setPos(place(m.x, m.y, level))
+    if (level > 1) setEdge(false)
+  }, [level, size.w, size.h]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    onLevel(1)
+    frame.current?.scrollTo({ top: 0 })
+    setBusy(true)
+    const t = setTimeout(() => setBusy(false), 380)
+    return () => clearTimeout(t)
+  }, [resetKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onMove = (e: RMouse) => {
+    const r = stage.current?.getBoundingClientRect()
+    if (!r) return
+    const mx = e.clientX - r.left, my = e.clientY - r.top
+    mouse.current = { x: mx, y: my }
+    if (level > 1) {
+      cancelAnimationFrame(raf.current)
+      raf.current = requestAnimationFrame(() => { setFast(true); setPos(place(mx, my, level)) })
+    } else if (!hold.current) setEdge(mx >= fitLeft && mx <= fitLeft + fitW && my >= fitTop && my <= fitTop + 36)
+  }
+  const onClick = (e: RMouse) => {
+    const t = e.target as HTMLElement
+    if (!frame.current?.contains(t) || t.closest(INTERACTIVE) || (window.getSelection()?.toString().length ?? 0) > 0) return
+    const r = stage.current?.getBoundingClientRect()
+    if (r) mouse.current = { x: e.clientX - r.left, y: e.clientY - r.top }
+    onLevel(level >= MAX_LEVEL ? 1 : level + 1)
+  }
+  // Touch: drag to move the zoomed page.
+  const down = (e: RPointer) => { if (e.pointerType !== 'mouse' && level > 1) drag.current = { x: e.clientX, y: e.clientY } }
+  const dragMove = (e: RPointer) => {
+    const d = drag.current
+    if (!d) return
+    const dx = e.clientX - d.x, dy = e.clientY - d.y
+    drag.current = { x: e.clientX, y: e.clientY }
+    setFast(true)
+    setPos((p) => ({ x: clamp(p.x + dx, Math.min(0, size.w - fitW * level), 0), y: clamp(p.y + dy, Math.min(0, size.h - fitH * level), 0) }))
+  }
+
+  return (
+    <div ref={stage} className="relative flex-1 min-w-0 overflow-hidden bg-[#737373] print:overflow-visible print:bg-white" onMouseMove={onMove} onClick={onClick}
+      onMouseLeave={() => { if (!hold.current) setEdge(false) }} onPointerDown={down} onPointerMove={dragMove} onPointerUp={() => { drag.current = null }} onPointerCancel={() => { drag.current = null }}>
+      <div ref={frame} data-page-frame
+        className={`absolute left-0 top-0 bg-white overflow-y-auto overflow-x-hidden shadow-[0_2px_18px_rgba(0,0,0,0.55)] ${level > 1 ? '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : ''} print:!static print:!transform-none print:!w-auto print:!h-auto print:overflow-visible print:shadow-none`}
+        style={{ width: W, height: fitH / s0, transform: `translate(${pos.x}px, ${pos.y}px) scale(${s0 * level})`, transformOrigin: '0 0', transition: `${fast ? 'transform 0.12s ease-out' : 'transform 0.4s cubic-bezier(.22,.8,.3,1)'}, opacity .25s`, cursor: level >= MAX_LEVEL ? 'zoom-out' : 'zoom-in', touchAction: level > 1 ? 'none' : 'pan-y', opacity: busy ? 0.35 : 1 }}>
+        {children}
+      </div>
+      {busy && <div className="absolute inset-0 grid place-items-center pointer-events-none z-10 print:hidden"><div role="status" aria-label="Loading page" className="h-11 w-11 rounded-full border-4 border-white/30 border-t-white animate-spin" /></div>}
+      {drawer && (
+        <div aria-hidden={!edge} onMouseEnter={() => { hold.current = true }} onMouseLeave={() => { hold.current = false; setEdge(false) }}
+          className="absolute z-20 print:hidden" style={{ left: fitLeft, width: fitW, top: fitTop, transform: edge ? 'translateY(0)' : 'translateY(-115%)', visibility: edge ? 'visible' : 'hidden', transition: `transform .3s ease, visibility 0s linear ${edge ? '0s' : '.3s'}` }}>
+          {drawer}
+        </div>)}
+    </div>
+  )
+}
+
+/** The circular category badge: hover a coloured wedge for its name, click it to open that category. */
+export function CategoryWheel({ cats, currentCatId, colors, onOpenCat }: { cats: { id: string; name: string }[]; currentCatId?: string; colors: (i: number) => string; onOpenCat: (id: string) => void }) {
+  const [hover, setHover] = useState(-1)
+  if (cats.length === 0) return null
+  const n = cats.length, C = 40, R0 = 17, R1 = 38, gap = n > 1 ? 0.04 : 0
+  const pt = (r: number, a: number) => `${(C + r * Math.cos(a)).toFixed(2)},${(C + r * Math.sin(a)).toFixed(2)}`
+  const wedge = (i: number) => {
+    const span = (Math.PI * 2) / n
+    const a0 = -Math.PI / 2 + i * span + gap / 2, a1 = -Math.PI / 2 + (i + 1) * span - gap / 2 - (n === 1 ? 0.001 : 0)
+    const big = a1 - a0 > Math.PI ? 1 : 0
+    return `M${pt(R1, a0)} A${R1},${R1} 0 ${big} 1 ${pt(R1, a1)} L${pt(R0, a1)} A${R0},${R0} 0 ${big} 0 ${pt(R0, a0)} Z`
+  }
+  return (
+    <div className="relative shrink-0 print:hidden" onMouseLeave={() => setHover(-1)}>
+      <svg viewBox="0 0 80 80" className="h-16 w-16" role="group" aria-label="Category wheel">
+        {cats.map((c, i) => (
+          <path key={c.id} d={wedge(i)} role="button" tabIndex={0} aria-label={`Open ${c.name}`} fill={colors(i)} stroke="#fff" strokeWidth={hover === i || c.id === currentCatId ? 2 : 0.5}
+            opacity={hover === -1 || hover === i ? 1 : 0.55} className="cursor-pointer outline-none"
+            style={{ transformOrigin: '40px 40px', transform: hover === i ? 'scale(1.07)' : undefined, transition: 'transform .12s, opacity .12s' }}
+            onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)} onBlur={() => setHover(-1)}
+            onClick={() => onOpenCat(c.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenCat(c.id) } }} />))}
+        <circle cx={C} cy={C} r={R0 - 3} fill="#fff" stroke="#d8dee3" pointerEvents="none" />
+        <text x={C} y={C + 3} textAnchor="middle" fontSize="9" fontWeight="700" fill="#1b1b19" pointerEvents="none">{n}</text>
+      </svg>
+      {hover >= 0 && <span role="tooltip" className="absolute right-0 top-full mt-1 z-30 whitespace-nowrap rounded bg-black/85 px-2 py-1 text-xs text-white">{cats[hover].name}</span>}
+    </div>
+  )
+}
+
+/** An item code in a table: bright orange outline on hover, click to add it to the quotation with a quantity. */
+export function SkuCode({ id, code, name, onOpen }: { id: string; code: string; name: string; onOpen?: () => void }) {
+  const rfq = useRfq()
+  const [open, setOpen] = useState(false)
+  const [qty, setQty] = useState(1)
+  const [done, setDone] = useState(false)
+  useEffect(() => {
+    if (!open) return
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [open])
+  return (
+    <span className="relative inline-block" onClick={(e) => e.stopPropagation()}>
+      <button type="button" aria-haspopup="dialog" aria-expanded={open} title="Click to add to quotation" onClick={() => { setOpen(!open); setDone(false) }}
+        className="font-mono font-bold border-2 border-transparent rounded-sm px-1 -mx-1 hover:border-[#F59E0B] focus-visible:border-[#F59E0B] outline-none">{code}</button>
+      {open && (
+        <div role="dialog" aria-label={`Add ${code} to quotation`} className="absolute left-0 top-full z-30 mt-1 w-52 border border-steel-300 bg-white p-2 text-left text-xs font-normal shadow-lg print:hidden">
+          <p className="font-semibold truncate" title={name}>{code}</p>
+          {done ? <p role="status" className="mt-1 text-green-800">Added to your quotation list.</p> : (
+            <div className="mt-1 flex items-center gap-1">
+              <label htmlFor={`q-${id}`} className="sr-only">Quantity</label>
+              <input id={`q-${id}`} type="number" min={1} max={100000} value={qty} onChange={(e) => setQty(Math.max(1, Math.min(100000, Math.floor(Number(e.target.value)) || 1)))} className="w-16 border border-steel-300 px-1 py-1" />
+              <button className="flex-1 bg-brand-green text-white px-2 py-1 hover:opacity-90" onClick={() => { rfq.add({ id, code, name }, qty); setDone(true) }}>Add to quotation</button>
+            </div>)}
+          <div className="mt-1.5 flex justify-between">
+            {onOpen && <button className="underline" onClick={() => { setOpen(false); onOpen() }}>Open page</button>}
+            <button className="underline" onClick={() => setOpen(false)}>Close</button>
+          </div>
+        </div>)}
+    </span>
+  )
+}
+
+/** Dark translucent legend over the lower half of the viewer. Shown on first visit and from the ? button. */
+export function LegendOverlay({ onClose, onFullHelp }: { onClose: () => void; onFullHelp: () => void }) {
+  const box = 'inline-grid place-items-center w-[15px] h-[19px] border-[1.5px] border-white bg-white/10 font-mono text-xs font-bold'
+  const Row = ({ glyph, children }: { glyph: ReactNode; children: ReactNode }) => <li className="flex items-center gap-3"><span className="w-28 shrink-0 flex justify-end">{glyph}</span><span>{children}</span></li>
+  return (
+    <div role="region" aria-label="Guide legend" className="absolute inset-x-0 bottom-0 z-30 flex h-1/2 min-h-[210px] flex-col bg-black/80 text-white print:hidden">
+      <button aria-label="Close legend" onClick={onClose} className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full border-2 border-white text-lg leading-none hover:bg-white/20"><X size={18} /></button>
+      <div className="mx-auto w-full max-w-3xl overflow-y-auto px-4 py-4 text-sm">
+        <h2 className="mb-2 font-semibold">How to read this guide</h2>
+        <ul className="space-y-2">
+          <Row glyph={<span className="inline-flex gap-px">{[...'C01'].map((c, i) => <span key={i} className={box}>{c}</span>)}</span>}>Page code in boxes. Click it to open that page.</Row>
+          <Row glyph={<span className="border-2 border-[#F59E0B] px-1 font-mono font-bold">S815-K450</span>}>Item code in a table. Click it to add the item to your quotation.</Row>
+          <Row glyph={<span className="font-bold">Click page</span>}>Zoom in to 2x, then 3x, then back to fit. While zoomed, move the mouse to pan.</Row>
+          <Row glyph={<span className="font-bold">Top edge</span>}>Move the mouse to the top edge of the page to open the section menu.</Row>
+          <Row glyph={<span className="inline-block h-6 w-6 rounded-full" style={{ background: 'conic-gradient(#2f9e44 0 25%, #1d5a78 0 50%, #e3a008 0 75%, #8e44ad 0)' }} />}>Colour wheel: point at a wedge for its name, click to open the category.</Row>
+          <Row glyph={<span className="rounded bg-green-200 px-1.5 text-xs font-semibold text-green-900">Verified</span>}>Data was checked against the original catalogue. Not available means the data is not in the system.</Row>
+        </ul>
+        <button className="mt-3 underline" onClick={onFullHelp}>Full help</button>
+      </div>
+    </div>
   )
 }

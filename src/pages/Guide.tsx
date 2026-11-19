@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, CircleHelp, FileDown, Info, LayoutGrid, LifeBuoy, Link2, List, Maximize2, Printer, Search, ShoppingCart, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CircleHelp, FileDown, Home, Info, LayoutGrid, LifeBuoy, Link2, List, Maximize2, Menu, Printer, Search, ShoppingCart, Star, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { listCategories, thumbsFor } from '../lib/catalogue'
@@ -12,7 +12,8 @@ import { CodeBoxes, Frame } from '../components/ImageViewer'
 import { AddToRfqButton } from '../components/RfqDrawer'
 import ShareBar from '../components/ShareBar'
 import GuideIllustration from '../components/GuideIllustration'
-import ItemDetailsModal, { GuideResults, ProductAssist } from '../components/GuidePanels'
+import ItemDetailsModal, { CategoryWheel, GuideResults, LegendOverlay, MAX_LEVEL, PageStage, ProductAssist, SkuCode } from '../components/GuidePanels'
+import { PANELS } from '../lib/access'
 import ProductDetail from './ProductDetail'
 
 const PALETTE = ['#2f9e44', '#1d5a78', '#e3a008', '#8e44ad', '#c0392b', '#16a085', '#2c3e50', '#d35400']
@@ -23,7 +24,7 @@ function Sheet({ code, title, cats, currentCatId, accent, onOpenCat, onOpenIndex
   code: string; title: string; cats: GuideCat[]; currentCatId?: string; accent: string; onOpenCat: (id: string) => void; onOpenIndex: () => void; narrow?: boolean; children: ReactNode
 }) {
   return (
-    <div className={`mx-auto w-full ${narrow ? 'max-w-3xl' : 'max-w-5xl'} bg-white shadow-xl border border-steel-300 print:shadow-none`} style={{ borderLeft: `6px solid ${accent}`, borderRight: `6px solid ${accent}` }}>
+    <div className={`mx-auto w-full ${narrow ? 'max-w-3xl' : ''} bg-white print:shadow-none`} style={{ borderLeft: `6px solid ${accent}`, borderRight: `6px solid ${accent}` }}>
       <div className="px-3 pt-3">
         <div role="navigation" aria-label="Sections" className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-px bg-steel-300 border border-steel-300 print:hidden">
           <div className="bg-white"><button onClick={onOpenIndex} className={`w-full h-9 text-left px-2 border-l-4 border-steel-950 text-[10px] sm:text-[11px] leading-tight font-bold ${code === 'INDEX' ? 'bg-steel-950 text-white' : 'bg-steel-100 text-steel-950 hover:brightness-95'}`}>INDEX</button></div>
@@ -41,6 +42,7 @@ function Sheet({ code, title, cats, currentCatId, accent, onOpenCat, onOpenIndex
         <div className="shrink-0"><CodeBoxes code={code} big /><a href="https://www.ultraplastindia.com/" target="_blank" rel="noopener noreferrer" className="block text-[10px] text-brand-green underline mt-0.5 print:hidden">www.ultraplastindia.com</a></div>
         <div className="flex-1 min-w-0 border-y-2 px-3 py-1" style={{ background: `${accent}33`, borderColor: accent }}><h1 className="text-right text-base sm:text-xl font-bold uppercase tracking-wide truncate">{title}</h1></div>
         <img src={LOGO_DATA_URL} alt="Ultraplast" className="h-8 w-auto hidden sm:block shrink-0" />
+        <CategoryWheel cats={cats} currentCatId={currentCatId} colors={color} onOpenCat={onOpenCat} />
       </div>
       {code !== 'INDEX' && (
         <div className="px-3 pt-2 text-[11px] text-steel-600 flex items-center gap-2 print:hidden">
@@ -250,7 +252,7 @@ function CategoryPage({ cat, prods, pages, onOpen, thumbsVersion, accent, onGo, 
             <tbody>
               {ids.slice(0, shown).map((id) => { const p = prods.get(id)!; const d = details.get(id); return (
                 <tr key={id} className="border-t border-steel-300 hover:bg-belt-100 cursor-pointer" onClick={() => onOpen(id)}>
-                  <td className="px-3 py-2 whitespace-nowrap"><Link to={`/guide/p/${id}`} className="font-mono font-bold hover:text-brand-green" onClick={(e) => e.stopPropagation()}>{p.code}</Link></td>
+                  <td className="px-3 py-2 whitespace-nowrap hover:outline hover:outline-2 hover:-outline-offset-2 hover:outline-[#F59E0B]"><SkuCode id={id} code={p.code} name={p.name} onOpen={() => onOpen(id)} /></td>
                   <td className="px-3 py-2">{p.name}</td>
                   <td className="px-3 py-2">{filterCell(d?.brand, (v) => `brand=${enc(v)}`)}</td>
                   <td className="px-3 py-2">{filterCell(d?.material, (v) => `material=${enc(v)}`)}</td>
@@ -271,14 +273,18 @@ function CategoryPage({ cat, prods, pages, onOpen, thumbsVersion, accent, onGo, 
 export default function Guide() {
   const { kind, id } = useParams()
   const nav = useNavigate()
-  const { can } = useAuth()
+  const { can, canPanel, signOut } = useAuth()
   const rfq = useRfq()
   const [cats, setCats] = useState<GuideCat[]>([])
   const [prods, setProds] = useState<GuideProd[]>([])
   const [loaded, setLoaded] = useState(false)
   const [err, setErr] = useState('')
   const [panel, setPanel] = useState<'' | 'contents' | 'thumbs' | 'help' | 'share' | 'assist'>('')
-  const [zoom, setZoom] = useState(1)
+  const [level, setLevel] = useState(1)
+  const [legend, setLegend] = useState(() => { try { return localStorage.getItem('guide-legend-seen') !== '1' } catch { return true } })
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [cookies, setCookies] = useState(false)
+  const [marks, setMarks] = useState<string[]>(() => { try { const v = JSON.parse(localStorage.getItem('guide-bookmarks') ?? '[]') as unknown; return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 50) : [] } catch { return [] } })
   const [detailId, setDetailId] = useState('')
   const [codeText, setCodeText] = useState('')
   const [codeBad, setCodeBad] = useState(false)
@@ -287,7 +293,6 @@ export default function Guide() {
   const [filter, setFilter] = useState('')
   const [notice, setNotice] = useState('')
   const [catThumbs, setCatThumbs] = useState<Map<string, string>>(new Map())
-  const scroll = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let live = true
@@ -316,7 +321,7 @@ export default function Guide() {
   const currentCatId = cur?.kind === 'category' ? cur.id : cur?.categoryId
   const accent = (() => { const i = catList.findIndex((c) => c.id === currentCatId); return i >= 0 ? color(i) : '#003080' })()
 
-  useEffect(() => { if (cur) { setCodeText(cur.code); setCodeBad(false) } scroll.current?.scrollTo({ top: 0 }) }, [cur?.code, cur?.kind]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (cur) { setCodeText(cur.code); setCodeBad(false) } }, [cur?.code, cur?.kind]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // a picture for each category bubble on the index
   useEffect(() => {
@@ -345,7 +350,13 @@ export default function Guide() {
   const [sp] = useSearchParams()
   const filters = useMemo(() => parseParams(sp), [sp])
   const hasFilters = Boolean(filters.q || filters.brand || filters.material || filters.pitch || filters.width || filters.thickness)
-  const zoomBy = (d: number) => setZoom((z) => Math.min(2, Math.max(0.5, Math.round((z + d) * 10) / 10)))
+  const closeLegend = () => { setLegend(false); try { localStorage.setItem('guide-legend-seen', '1') } catch { /* storage unavailable */ } }
+  const toggleMark = () => {
+    if (!cur) return
+    const next = marks.includes(cur.code) ? marks.filter((m) => m !== cur.code) : [...marks, cur.code]
+    setMarks(next)
+    try { localStorage.setItem('guide-bookmarks', JSON.stringify(next)) } catch { /* storage unavailable */ }
+  }
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -382,45 +393,73 @@ export default function Guide() {
   if (!loaded) return <p role="status" className="text-steel-600">Loading the guide…</p>
   if (err) return <p role="alert" className="text-red-700">{err}</p>
 
+  const drawer = cur ? (
+    <div className="bg-[#14171a]/90 text-white backdrop-blur-sm shadow-xl">
+      <div className="flex items-center justify-between gap-2 border-b border-white/15 px-3 py-1.5 text-xs">
+        <button disabled={idx <= 0} onClick={() => go(idx - 1)} className="flex items-center gap-1 hover:underline disabled:opacity-40"><ChevronLeft size={14} aria-hidden /> Previous page{pages[idx - 1] ? `: ${pages[idx - 1].code}` : ''}</button>
+        <span className="hidden sm:inline text-white/60">Go to a section</span>
+        <button disabled={idx >= pages.length - 1} onClick={() => go(idx + 1)} className="flex items-center gap-1 hover:underline disabled:opacity-40">Next page{pages[idx + 1] ? `: ${pages[idx + 1].code}` : ''} <ChevronRight size={14} aria-hidden /></button>
+      </div>
+      <div className="grid max-h-44 grid-cols-2 gap-1 overflow-y-auto p-2 sm:grid-cols-4 lg:grid-cols-6">
+        <button onClick={() => go(0)} style={{ borderTop: '4px solid #fff' }} className="bg-white/10 px-2 py-1.5 text-left text-xs font-semibold hover:bg-white/20">INDEX</button>
+        {catList.map((c, i) => <button key={c.id} title={c.name} onClick={() => openCat(c.id)} style={{ borderTop: `4px solid ${color(i)}` }} className="truncate bg-white/10 px-2 py-1.5 text-left text-xs font-semibold hover:bg-white/20">{c.name}</button>)}
+      </div>
+    </div>) : null
+
   return (
-    <div className="relative flex flex-col h-[calc(100vh-10rem)] min-h-[560px] bg-steel-600 rounded-md overflow-hidden print:h-auto print:min-h-0 print:bg-white print:overflow-visible">
-      <div className="flex flex-wrap items-center gap-1 sm:gap-2 bg-neutral-900 px-2 sm:px-3 py-2 print:hidden">
+    <div className="fixed inset-0 z-[45] flex flex-col bg-[#737373] print:static print:inset-auto print:block print:bg-white">
+      <div className="relative z-40 flex flex-wrap items-center gap-x-2 gap-y-1 bg-[#1E2226] px-2 py-1 sm:px-3 min-h-12 print:hidden">
         <div className="relative">
-          <div className="flex items-center bg-white rounded-sm">
-            <Search size={16} className="ml-2 text-steel-600" aria-hidden />
+          <button type="button" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-1.5 rounded-sm p-1 hover:bg-white/15">
+            <img src={LOGO_DATA_URL} alt="Ultraplast" className="h-7 w-auto bg-white px-1.5 py-0.5 rounded-sm" /><Menu size={18} className="text-white" aria-hidden />
+          </button>
+          {menuOpen && (
+            <nav aria-label="Panels" className="absolute left-0 top-full mt-1 z-50 w-52 bg-white text-steel-950 rounded shadow-xl py-1 text-sm">
+              {PANELS.filter(([k]) => k !== 'guide' && canPanel(k) && (k !== 'admin' || can('manage_catalogue'))).map(([k, label, to]) => <Link key={k} to={to} className="block px-3 py-1.5 hover:bg-belt-100" onClick={() => setMenuOpen(false)}>{label}</Link>)}
+              <Link to="/profile" className="block px-3 py-1.5 hover:bg-belt-100 border-t border-steel-300" onClick={() => setMenuOpen(false)}>Profile</Link>
+              <button className="block w-full text-left px-3 py-1.5 hover:bg-belt-100" onClick={() => void signOut()}>Sign out</button>
+            </nav>)}
+        </div>
+        <div className="relative">
+          <form role="search" onSubmit={(e) => { e.preventDefault(); if (results[0]) { setQ(''); openProd(results[0].id) } }} className="flex items-center bg-white rounded-sm">
             <label htmlFor="gq" className="sr-only">Search products</label>
-            <input id="gq" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search products" className="w-40 sm:w-56 px-2 py-1.5 text-sm bg-transparent outline-none" />
-            {q && <button aria-label="Clear search" className="px-2 text-steel-950" onClick={() => setQ('')}><X size={16} /></button>}
-          </div>
+            <input id="gq" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search products" className="w-36 sm:w-52 px-2 py-1.5 text-sm bg-transparent outline-none" />
+            {q && <button type="button" aria-label="Clear search" className="px-1.5 text-steel-950" onClick={() => setQ('')}><X size={15} /></button>}
+            <button type="submit" aria-label="Search" className="bg-[#2f353b] text-white p-2 rounded-r-sm hover:bg-black"><Search size={16} /></button>
+          </form>
           {results.length > 0 && (
             <ul className="absolute z-40 mt-1 w-72 bg-white border border-steel-300 rounded shadow-lg max-h-64 overflow-auto text-sm">
               {results.map((r) => <li key={r.id}><button className="w-full text-left px-3 py-2 hover:bg-belt-100" onClick={() => { setQ(''); openProd(r.id) }}><span className="font-mono">{r.code}</span> {r.name}</button></li>)}
             </ul>)}
         </div>
-        <div className="flex items-center gap-0.5 sm:ml-2">
+        <div className="flex items-center gap-0.5">
           <button className={ib} title="Contents" aria-label="Contents" aria-pressed={panel === 'contents'} onClick={() => setPanel(panel === 'contents' ? '' : 'contents')}><List size={22} /></button>
           <button className={ib} title="Thumbnails" aria-label="Thumbnails" aria-pressed={panel === 'thumbs'} onClick={() => setPanel(panel === 'thumbs' ? '' : 'thumbs')}><LayoutGrid size={22} /></button>
-          <button className={ib} title="Download this page as PDF" aria-label="Download this page as PDF" onClick={() => void doPdf('download')}><FileDown size={22} /></button>
         </div>
         <div className="flex items-center gap-1 mx-auto">
           <button className={ib} title="Previous page" aria-label="Previous page" disabled={idx <= 0} onClick={() => go(idx - 1)}><ChevronLeft size={24} /></button>
+          <button className={ib} title="General index" aria-label="General index" disabled={idx === 0} onClick={() => go(0)}><Home size={21} /></button>
           <label htmlFor="gc" className="sr-only">Page code</label>
           <input id="gc" value={codeText} onChange={(e) => { setCodeText(e.target.value); setCodeBad(false) }} onKeyDown={(e) => { if (e.key === 'Enter') jump() }} onFocus={(e) => e.currentTarget.select()} aria-invalid={codeBad}
-            className={`w-28 sm:w-36 text-center font-mono text-sm py-1.5 rounded-sm ${codeBad ? 'bg-red-100 text-red-900' : 'bg-white text-steel-950'}`} />
+            className={`w-24 sm:w-32 text-center font-mono text-sm py-1 rounded-sm border-2 ${codeBad ? 'bg-red-100 text-red-900 border-red-500' : 'bg-white text-steel-950 border-steel-300'}`} />
           <button className={ib} title="Next page" aria-label="Next page" disabled={idx >= pages.length - 1} onClick={() => go(idx + 1)}><ChevronRight size={24} /></button>
+          <button className={ib} title={cur && marks.includes(cur.code) ? 'Remove bookmark' : 'Bookmark this page'} aria-label={cur && marks.includes(cur.code) ? 'Remove bookmark' : 'Bookmark this page'} aria-pressed={Boolean(cur && marks.includes(cur.code))} onClick={toggleMark}>
+            <Star size={21} className={cur && marks.includes(cur.code) ? 'fill-amber-400 text-amber-400' : ''} />
+          </button>
         </div>
         <div className="flex items-center gap-0.5 relative">
-          <button className={ib} title="Zoom out" aria-label="Zoom out" disabled={zoom <= 0.5} onClick={() => zoomBy(-0.1)}><ZoomOut size={22} /></button>
-          <span className="text-xs text-white/80 w-10 text-center tabular-nums" aria-live="polite">{Math.round(zoom * 100)}%</span>
-          <button className={ib} title="Zoom in" aria-label="Zoom in" disabled={zoom >= 2} onClick={() => zoomBy(0.1)}><ZoomIn size={22} /></button>
-          <button className={ib} title="Fit to screen" aria-label="Fit to screen" disabled={zoom === 1} onClick={() => setZoom(1)}><Maximize2 size={20} /></button>
+          <button className={ib} title="Zoom out" aria-label="Zoom out" disabled={level <= 1} onClick={() => setLevel(level - 1)}><ZoomOut size={22} /></button>
+          <span className="text-xs text-white/80 w-8 text-center tabular-nums" aria-live="polite">{level}x</span>
+          <button className={ib} title="Zoom in" aria-label="Zoom in" disabled={level >= MAX_LEVEL} onClick={() => setLevel(level + 1)}><ZoomIn size={22} /></button>
+          <button className={ib} title="Fit to screen" aria-label="Fit to screen" disabled={level === 1} onClick={() => setLevel(1)}><Maximize2 size={20} /></button>
+          <button className={ib} title="Download this page as PDF" aria-label="Download this page as PDF" onClick={() => void doPdf('download')}><FileDown size={22} /></button>
           <button className={ib} title="Print this page" aria-label="Print this page" onClick={() => void doPdf('print')}><Printer size={22} /></button>
           <button className={ib} title="Share link" aria-label="Share link" aria-pressed={panel === 'share'} onClick={() => setPanel(panel === 'share' ? '' : 'share')}><Link2 size={22} /></button>
           <button className={ib} title="Additional product assistance" aria-label="Additional product assistance" aria-pressed={panel === 'assist'} onClick={() => setPanel(panel === 'assist' ? '' : 'assist')}><LifeBuoy size={22} /></button>
-          <button className={ib} title="Help" aria-label="Help" aria-pressed={panel === 'help'} onClick={() => setPanel(panel === 'help' ? '' : 'help')}><CircleHelp size={22} /></button>
+          <button className={ib} title="Help and legend" aria-label="Help and legend" aria-pressed={legend} onClick={() => (legend ? closeLegend() : setLegend(true))}><CircleHelp size={22} /></button>
         </div>
-        <button onClick={() => rfq.setOpen(true)} className="ml-auto flex items-center gap-2 bg-brand-green hover:opacity-90 text-white px-3 py-1.5 rounded-sm text-left">
-          <ShoppingCart size={22} aria-hidden /><span className="text-xs leading-tight uppercase tracking-wide">Request for quotation<br /><b>{rfq.items.length} items</b></span>
+        <button onClick={() => rfq.setOpen(true)} className="ml-auto flex items-center gap-2 bg-[#5A9216] hover:bg-[#65A30D] text-white px-3 py-1 rounded-sm text-left">
+          <ShoppingCart size={22} aria-hidden /><span className="text-xs leading-tight uppercase tracking-wide">Request for quotation<br /><b>{rfq.items.length} {rfq.items.length === 1 ? 'item' : 'items'}</b></span>
         </button>
       </div>
       {notice && <p role="status" className="bg-amber-100 text-amber-950 text-sm px-3 py-1.5 print:hidden">{notice} <button className="underline ml-2" onClick={() => setNotice('')}>Dismiss</button></p>}
@@ -429,6 +468,9 @@ export default function Guide() {
         {panel === 'contents' && (
           <aside aria-label="Contents" className="absolute inset-y-0 left-0 z-20 w-72 max-w-[85%] bg-white border-r border-steel-300 overflow-y-auto print:hidden">
             <div className="p-2 border-b border-steel-300 flex gap-2"><input aria-label="Filter contents" placeholder="Filter by name or code" value={filter} onChange={(e) => setFilter(e.target.value)} className="flex-1 border border-steel-300 px-2 py-1 text-sm" /><button aria-label="Close contents" onClick={() => setPanel('')}><X size={18} /></button></div>
+            {marks.length > 0 && (
+              <div className="border-b border-steel-300 px-3 py-2"><p className="text-xs font-semibold uppercase text-steel-600">Bookmarks</p>
+                <ul className="mt-1 flex flex-wrap gap-1">{marks.map((m) => <li key={m}><button className="border border-steel-300 px-1.5 py-0.5 text-xs font-mono hover:bg-belt-100" onClick={() => { const i = pageIndexByCode(pages, m); if (i >= 0) go(i) }}>{m}</button></li>)}</ul></div>)}
             <button onClick={() => go(0)} className={`w-full text-left px-3 py-2 text-sm font-semibold hover:bg-belt-100 ${idx === 0 ? 'bg-belt-100' : ''}`}>INDEX · General index</button>
             {tree.map(({ c, items }, i) => {
               const visible = filterNeedle ? items.filter((p) => `${p.code} ${p.title}`.toLowerCase().includes(filterNeedle)) : items
@@ -482,22 +524,32 @@ export default function Guide() {
               : <ShareBar kind={cur.kind === 'category' ? 'category' : 'product'} id={cur.id} name={cur.title} />}
           </div>)}
 
+        {legend && <LegendOverlay onClose={closeLegend} onFullHelp={() => { closeLegend(); setPanel('help') }} />}
+
         {panel === 'assist' && <ProductAssist cur={cur} pages={pages} onGo={(p) => go(pages.indexOf(p))} onClose={() => setPanel('')} />}
 
-        <button className="hidden lg:grid absolute left-2 top-1/2 -translate-y-1/2 z-10 h-14 w-9 place-items-center bg-black/30 hover:bg-black/50 text-white rounded disabled:opacity-0 print:hidden" aria-label="Previous page" disabled={idx <= 0} onClick={() => go(idx - 1)}><ChevronLeft /></button>
-        <button className="hidden lg:grid absolute right-2 top-1/2 -translate-y-1/2 z-10 h-14 w-9 place-items-center bg-black/30 hover:bg-black/50 text-white rounded disabled:opacity-0 print:hidden" aria-label="Next page" disabled={idx >= pages.length - 1} onClick={() => go(idx + 1)}><ChevronRight /></button>
+        <button className="hidden md:grid absolute left-1 top-1/2 -translate-y-1/2 z-10 h-24 w-12 place-items-center text-white/45 hover:text-white/90 disabled:opacity-0 print:hidden" aria-label="Previous page" disabled={idx <= 0} onClick={() => go(idx - 1)}><ChevronLeft size={44} strokeWidth={1.5} /></button>
+        <button className="hidden md:grid absolute right-1 top-1/2 -translate-y-1/2 z-10 h-24 w-12 place-items-center text-white/45 hover:text-white/90 disabled:opacity-0 print:hidden" aria-label="Next page" disabled={idx >= pages.length - 1} onClick={() => go(idx + 1)}><ChevronRight size={44} strokeWidth={1.5} /></button>
 
-        <div ref={scroll} className="flex-1 overflow-auto p-3 sm:p-6 lg:px-14 print:overflow-visible print:p-0">
+        <PageStage level={level} onLevel={setLevel} resetKey={cur ? `${cur.kind}:${cur.id}:${hasFilters ? 'f' : ''}` : ''} drawer={drawer}>
           {cur && (
-            <div className="guide-zoom" style={zoom === 1 ? undefined : { zoom }}>
             <Sheet code={cur.code} title={cur.title} cats={catList} currentCatId={currentCatId} accent={accent} onOpenCat={openCat} onOpenIndex={() => go(0)} narrow={cur.kind === 'index'}>
               {cur.kind === 'index' && (hasFilters ? <GuideResults params={filters} onOpen={openProd} onClear={() => nav('/guide')} /> : <IndexPage cats={cats} thumbs={catThumbs} open={openCat} />)}
               {cur.kind === 'category' && <CategoryPage cat={{ id: cur.id, name: cur.title }} prods={prodMap} pages={pages} onOpen={openProd} thumbsVersion={0} accent={accent} onGo={(u) => nav(u)} onDetails={setDetailId} />}
               {cur.kind === 'product' && (<div className="space-y-4"><div className="flex justify-end print:hidden"><button type="button" onClick={() => setDetailId(cur.id)} className="inline-flex items-center gap-1.5 border border-steel-300 bg-white px-3 py-1.5 text-sm hover:bg-steel-100"><Info size={16} aria-hidden /> Item details and downloads</button></div><GuideIllustration kind="product" pageId={cur.id} pages={pages} onOpen={(u) => nav(u)} accent={accent} /><ProductDetail sheet /></div>)}
-            </Sheet>
-            </div>)}
-        </div>
+            </Sheet>)}
+        </PageStage>
       </div>
+      <footer className="relative z-40 flex h-8 shrink-0 items-center justify-between gap-2 bg-[#2a2f34] px-3 text-[11px] text-white/80 print:hidden">
+        <span className="hidden w-1/3 truncate sm:block">Ultraplast Chainbelts Pvt. Ltd.</span>
+        <button type="button" aria-expanded={cookies} onClick={() => setCookies(!cookies)} className="mx-auto rounded-full bg-white/90 px-3 py-0.5 text-[11px] font-semibold text-steel-950 hover:bg-white">Cookie settings</button>
+        <span className="truncate text-right sm:w-1/3"><a href="https://www.ultraplastindia.com/" target="_blank" rel="noopener noreferrer" className="underline">www.ultraplastindia.com</a></span>
+        {cookies && (
+          <div role="dialog" aria-label="Cookie settings" className="absolute bottom-9 left-1/2 w-80 max-w-[92vw] -translate-x-1/2 rounded bg-white p-3 text-xs text-steel-950 shadow-xl">
+            <p>This application keeps only what it needs in your browser: your sign-in session, your quotation list, your bookmarks and whether you have closed the legend. It sets no advertising or analytics cookies.</p>
+            <button className="mt-2 underline" onClick={() => setCookies(false)}>Close</button>
+          </div>)}
+      </footer>
       {detailId && <ItemDetailsModal id={detailId} onClose={() => setDetailId('')} onOpenPage={openProd} />}
     </div>
   )

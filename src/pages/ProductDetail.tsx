@@ -8,6 +8,7 @@ import AddToBom, { CompareToggle } from '../components/AddToBom'
 import ShareBar from '../components/ShareBar'
 import { CodeBoxes, Frame, Gallery } from '../components/ImageViewer'
 import { AddToRfqButton } from '../components/RfqDrawer'
+import { SkuCode } from '../components/GuidePanels'
 
 interface Detail {
   id: string; product_code: string; name: string; category_id: string | null; brand: string | null; description: string | null; material: string | null
@@ -194,7 +195,7 @@ export default function ProductDetail({ sheet = false }: { sheet?: boolean }) {
               <thead className="bg-steel-100 text-left"><tr>{['Code', 'Name', 'Material', 'Pitch (mm)', 'Width (mm)'].map((h) => <th key={h} className="px-3 py-1.5 whitespace-nowrap">{h}</th>)}</tr></thead>
               <tbody>{siblings.map((r) => (
                 <tr key={r.id} onClick={() => nav(toProd(r.id))} className={`border-t border-steel-300 cursor-pointer hover:bg-belt-100 ${r.id === p.id ? 'bg-belt-100 font-semibold' : ''}`}>
-                  <td className="px-3 py-1.5 whitespace-nowrap"><Link to={toProd(r.id)} className="font-mono font-bold hover:text-brand-green" onClick={(e) => e.stopPropagation()}>{r.product_code}</Link></td>
+                  <td className={`px-3 py-1.5 whitespace-nowrap ${inGuide ? 'hover:outline hover:outline-2 hover:-outline-offset-2 hover:outline-[#F59E0B]' : ''}`}>{inGuide ? <SkuCode id={r.id} code={r.product_code} name={r.name} onOpen={() => nav(toProd(r.id))} /> : <Link to={toProd(r.id)} className="font-mono font-bold hover:text-brand-green" onClick={(e) => e.stopPropagation()}>{r.product_code}</Link>}</td>
                   <td className="px-3 py-1.5">{r.name}</td>
                   <td className="px-3 py-1.5">{cell(r.material, (v) => `material=${enc(v)}`)}</td>
                   <td className="px-3 py-1.5">{cell(r.pitch_mm, (v) => `pitch=${v}`)}</td>
