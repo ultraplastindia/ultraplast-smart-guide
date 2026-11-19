@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 export interface GalleryImage { url: string; caption?: string | null }
 
@@ -97,15 +97,16 @@ export function Lightbox({ images, start, onClose }: { images: GalleryImage[]; s
 }
 
 /** Main framed image (click to zoom) with a thumbnail strip when there are several. */
-export function Gallery({ images, name, compact }: { images: GalleryImage[]; name: string; compact?: boolean }) {
-  const [sel, setSel] = useState(0)
+export function Gallery({ images, name, compact, initial = 0, renderMain }: { images: GalleryImage[]; name: string; compact?: boolean; initial?: number; renderMain?: (img: GalleryImage, openFull: () => void) => ReactNode | null }) {
+  const [sel, setSel] = useState(initial)
   const [open, setOpen] = useState(false)
   if (images.length === 0) return <Frame alt={name} />
   const cur = images[Math.min(sel, images.length - 1)]
+  const custom = renderMain ? renderMain(cur, () => setOpen(true)) : null
   return (
     <div className="space-y-2">
-      <Frame src={cur.url} alt={cur.caption ?? name} onClick={() => setOpen(true)} />
-      {!compact && <p className="text-xs text-steel-600 print:hidden">Click the image to zoom in or out.</p>}
+      {custom ?? <Frame src={cur.url} alt={cur.caption ?? name} onClick={() => setOpen(true)} />}
+      {!compact && !custom && <p className="text-xs text-steel-600 print:hidden">Click the image to zoom in or out.</p>}
       {!compact && images.length > 1 && (
         <div className="flex flex-wrap gap-2 print:hidden">
           {images.map((im, n) => (

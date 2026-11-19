@@ -8,7 +8,7 @@ import AddToBom, { CompareToggle } from '../components/AddToBom'
 import ShareBar from '../components/ShareBar'
 import { CodeBoxes, Frame, Gallery } from '../components/ImageViewer'
 import { AddToRfqButton } from '../components/RfqDrawer'
-import { SkuCode } from '../components/GuidePanels'
+import { SkuCode, ZoomImage } from '../components/GuidePanels'
 
 interface Detail {
   id: string; product_code: string; name: string; category_id: string | null; brand: string | null; description: string | null; material: string | null
@@ -178,7 +178,7 @@ export default function ProductDetail({ sheet = false }: { sheet?: boolean }) {
                   <Frame src={relThumbs.get(r.id)} alt={r.name} /><span className="block mt-1 text-[11px] leading-tight font-semibold">{r.name}</span><span className="mt-1 inline-block"><CodeBoxes code={r.product_code} /></span></Link></li>))}</ul>)}
           </aside>
           <div className="space-y-5 min-w-0 order-1 lg:order-2">
-            <section aria-label="Images"><Gallery name={p.name} images={galleryImages} />
+            <section aria-label="Images"><Gallery key={preview ? 'cat' : 'img'} name={p.name} images={galleryImages} initial={inGuide && preview ? galleryImages.length - 1 : 0} renderMain={inGuide ? (im, openFull) => (/^Catalogue page/.test(im.caption ?? '') ? <ZoomImage src={im.url} alt={im.caption ?? p.name} onFullScreen={openFull} /> : null) : undefined} />
               {galleryImages.length === 0 && <p className="mt-2 text-sm text-steel-600">No images yet. See page {show(p.source_page)} of the original catalogue.</p>}</section>
             {techBlock}{specBlock}{docsBlock}
           </div>

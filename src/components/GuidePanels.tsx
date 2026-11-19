@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as RMouse, type PointerEvent as RPointer, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as RKey, type MouseEvent as RMouse, type PointerEvent as RPointer, type ReactNode } from 'react'
 import { ExternalLink, Globe, ShoppingCart, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
@@ -243,24 +243,14 @@ export function GuideResults({ params, onOpen, onClear }: { params: CataloguePar
  * page-change spinner), the category wheel, quick-add item codes and the legend overlay.
  * ---------------------------------------------------------------------------------------------- */
 const clamp = (n: number, a: number, b: number) => Math.min(b, Math.max(a, n))
-// Things a click must reach untouched: links, buttons, hotspots, table rows that open pages, form fields.
-const INTERACTIVE = 'a,button,input,select,textarea,label,summary,[role="button"],[role="dialog"],[data-nozoom],.cursor-pointer'
 export const MAX_LEVEL = 3
 
-/**
- * The grey stage with the white page. The page has a fixed design width and is scaled to fit. Click it to zoom
- * 1x, 2x, 3x and back; while zoomed the page follows the mouse, so there are no scroll bars to use.
- */
-export function PageStage({ level, onLevel, resetKey, drawer, children }: { level: number; onLevel: (n: number) => void; resetKey: string; drawer?: ReactNode; children: ReactNode }) {
+/** The grey stage with the white page. The page has a fixed design width and is scaled to fit the window; it scrolls normally. Move to the top edge for the section menu. */
+export function PageStage({ resetKey, drawer, children }: { resetKey: string; drawer?: ReactNode; children: ReactNode }) {
   const stage = useRef<HTMLDivElement>(null)
   const frame = useRef<HTMLDivElement>(null)
-  const mouse = useRef<{ x: number; y: number } | null>(null)
   const hold = useRef(false)
-  const raf = useRef(0)
-  const drag = useRef<{ x: number; y: number } | null>(null)
   const [size, setSize] = useState({ w: 1000, h: 700 })
-  const [pos, setPos] = useState({ x: 0, y: 0 })
-  const [fast, setFast] = useState(false)
   const [edge, setEdge] = useState(false)
   const [busy, setBusy] = useState(true)
 
@@ -280,65 +270,26 @@ export function PageStage({ level, onLevel, resetKey, drawer, children }: { leve
   const fitW = W * s0, fitH = Math.max(200, size.h - 24)
   const fitLeft = (size.w - fitW) / 2, fitTop = (size.h - fitH) / 2
 
-  // The page point under the cursor is the same share of the page as the cursor is of the fitted page, so a click zooms exactly where it points.
-  const place = (mx: number, my: number, lv: number) => {
-    const cw = fitW * lv, ch = fitH * lv
-    const ux = clamp((mx - fitLeft) / fitW, 0, 1), uy = clamp((my - fitTop) / fitH, 0, 1)
-    return {
-      x: cw <= size.w ? (size.w - cw) / 2 : clamp(mx - ux * cw, size.w - cw, 0),
-      y: ch <= size.h ? (size.h - ch) / 2 : clamp(my - uy * ch, size.h - ch, 0),
-    }
-  }
-
   useEffect(() => {
-    const m = mouse.current ?? { x: size.w / 2, y: size.h / 2 }
-    setFast(false)
-    setPos(place(m.x, m.y, level))
-    if (level > 1) setEdge(false)
-  }, [level, size.w, size.h]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    onLevel(1)
     frame.current?.scrollTo({ top: 0 })
     setBusy(true)
     const t = setTimeout(() => setBusy(false), 380)
     return () => clearTimeout(t)
-  }, [resetKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [resetKey])
 
   const onMove = (e: RMouse) => {
+    if (hold.current) return
     const r = stage.current?.getBoundingClientRect()
     if (!r) return
     const mx = e.clientX - r.left, my = e.clientY - r.top
-    mouse.current = { x: mx, y: my }
-    if (level > 1) {
-      cancelAnimationFrame(raf.current)
-      raf.current = requestAnimationFrame(() => { setFast(true); setPos(place(mx, my, level)) })
-    } else if (!hold.current) setEdge(mx >= fitLeft && mx <= fitLeft + fitW && my >= fitTop && my <= fitTop + 36)
-  }
-  const onClick = (e: RMouse) => {
-    const t = e.target as HTMLElement
-    if (!frame.current?.contains(t) || t.closest(INTERACTIVE) || (window.getSelection()?.toString().length ?? 0) > 0) return
-    const r = stage.current?.getBoundingClientRect()
-    if (r) mouse.current = { x: e.clientX - r.left, y: e.clientY - r.top }
-    onLevel(level >= MAX_LEVEL ? 1 : level + 1)
-  }
-  // Touch: drag to move the zoomed page.
-  const down = (e: RPointer) => { if (e.pointerType !== 'mouse' && level > 1) drag.current = { x: e.clientX, y: e.clientY } }
-  const dragMove = (e: RPointer) => {
-    const d = drag.current
-    if (!d) return
-    const dx = e.clientX - d.x, dy = e.clientY - d.y
-    drag.current = { x: e.clientX, y: e.clientY }
-    setFast(true)
-    setPos((p) => ({ x: clamp(p.x + dx, Math.min(0, size.w - fitW * level), 0), y: clamp(p.y + dy, Math.min(0, size.h - fitH * level), 0) }))
+    setEdge(mx >= fitLeft && mx <= fitLeft + fitW && my >= fitTop && my <= fitTop + 36)
   }
 
   return (
-    <div ref={stage} className="relative flex-1 min-w-0 overflow-hidden bg-[#737373] print:overflow-visible print:bg-white" onMouseMove={onMove} onClick={onClick}
-      onMouseLeave={() => { if (!hold.current) setEdge(false) }} onPointerDown={down} onPointerMove={dragMove} onPointerUp={() => { drag.current = null }} onPointerCancel={() => { drag.current = null }}>
+    <div ref={stage} className="relative flex-1 min-w-0 overflow-hidden bg-[#737373] print:overflow-visible print:bg-white" onMouseMove={onMove} onMouseLeave={() => { if (!hold.current) setEdge(false) }}>
       <div ref={frame} data-page-frame
-        className={`absolute left-0 top-0 bg-white overflow-y-auto overflow-x-hidden shadow-[0_2px_18px_rgba(0,0,0,0.55)] ${level > 1 ? '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : ''} print:!static print:!transform-none print:!w-auto print:!h-auto print:overflow-visible print:shadow-none`}
-        style={{ width: W, height: fitH / s0, transform: `translate(${pos.x}px, ${pos.y}px) scale(${s0 * level})`, transformOrigin: '0 0', transition: `${fast ? 'transform 0.12s ease-out' : 'transform 0.4s cubic-bezier(.22,.8,.3,1)'}, opacity .25s`, cursor: level >= MAX_LEVEL ? 'zoom-out' : 'zoom-in', touchAction: level > 1 ? 'none' : 'pan-y', opacity: busy ? 0.35 : 1 }}>
+        className="absolute left-0 top-0 bg-white overflow-y-auto overflow-x-hidden shadow-[0_2px_18px_rgba(0,0,0,0.55)] print:!static print:!transform-none print:!w-auto print:!h-auto print:overflow-visible print:shadow-none"
+        style={{ width: W, height: fitH / s0, transform: `translate(${fitLeft}px, ${fitTop}px) scale(${s0})`, transformOrigin: '0 0', transition: 'opacity .25s', opacity: busy ? 0.35 : 1 }}>
         {children}
       </div>
       {busy && <div className="absolute inset-0 grid place-items-center pointer-events-none z-10 print:hidden"><div role="status" aria-label="Loading page" className="h-11 w-11 rounded-full border-4 border-white/30 border-t-white animate-spin" /></div>}
@@ -347,6 +298,98 @@ export function PageStage({ level, onLevel, resetKey, drawer, children }: { leve
           className="absolute z-20 print:hidden" style={{ left: fitLeft, width: fitW, top: fitTop, transform: edge ? 'translateY(0)' : 'translateY(-115%)', visibility: edge ? 'visible' : 'hidden', transition: `transform .3s ease, visibility 0s linear ${edge ? '0s' : '.3s'}` }}>
           {drawer}
         </div>)}
+    </div>
+  )
+}
+
+/** Shared zoom level between the toolbar buttons and the catalogue page picture on the page. */
+export const ZoomCtx = createContext<{ level: number; setLevel: (n: number) => void; register: (delta: number) => void } | null>(null)
+
+/**
+ * The catalogue page picture. Click it to zoom to 2x, then 3x, then back to fit, exactly where you click.
+ * While zoomed the picture follows the mouse, so there are no scroll bars. Only this picture zooms.
+ */
+export function ZoomImage({ src, alt, onFullScreen }: { src: string; alt: string; onFullScreen?: () => void }) {
+  const ctx = useContext(ZoomCtx)
+  const [own, setOwn] = useState(1)
+  const level = ctx ? ctx.level : own
+  const setLevel = ctx ? ctx.setLevel : setOwn
+  const box = useRef<HTMLDivElement>(null)
+  const mouse = useRef<{ x: number; y: number } | null>(null)
+  const raf = useRef(0)
+  const drag = useRef<{ x: number; y: number } | null>(null)
+  const [size, setSize] = useState({ w: 600, h: 500 })
+  const [pos, setPos] = useState({ x: 0, y: 0 })
+  const [fast, setFast] = useState(false)
+  const [ratio, setRatio] = useState(1.3)
+  const levelNow = useRef(level)
+  levelNow.current = level
+
+  useEffect(() => { ctx?.register(1); return () => ctx?.register(-1) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setLevel(1) }, [src]) // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el) return
+    const read = () => setSize({ w: el.clientWidth, h: el.clientHeight })
+    read()
+    const ro = new ResizeObserver(read)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [ratio])
+
+  // The picture point under the cursor stays under the cursor, so a click zooms exactly where it points.
+  const place = (mx: number, my: number, lv: number) => ({ x: mx * (1 - lv), y: my * (1 - lv) })
+  useEffect(() => {
+    cancelAnimationFrame(raf.current)
+    const m = mouse.current ?? { x: size.w / 2, y: size.h / 2 }
+    setFast(false)
+    setPos(place(m.x, m.y, level))
+  }, [level, size.w, size.h]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const rel = (cx: number, cy: number) => { const r = box.current?.getBoundingClientRect(); return r ? { x: cx - r.left, y: cy - r.top } : { x: size.w / 2, y: size.h / 2 } }
+  const next = () => setLevel(level >= MAX_LEVEL ? 1 : level + 1)
+  const onMove = (e: RMouse) => {
+    const m = rel(e.clientX, e.clientY)
+    mouse.current = m
+    if (level > 1) { cancelAnimationFrame(raf.current); raf.current = requestAnimationFrame(() => { if (levelNow.current <= 1) return; setFast(true); setPos(place(m.x, m.y, levelNow.current)) }) }
+  }
+  const lim = (v: number, len: number) => clamp(v, len * (1 - level), 0)
+  const onKey = (e: RKey) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); next() }
+    else if (e.key === 'Escape' && level > 1) { e.preventDefault(); setLevel(1) }
+    else if (level > 1 && e.key.startsWith('Arrow')) {
+      e.preventDefault()
+      const d = 60
+      setFast(true)
+      setPos((p) => ({ x: lim(p.x + (e.key === 'ArrowLeft' ? d : e.key === 'ArrowRight' ? -d : 0), size.w), y: lim(p.y + (e.key === 'ArrowUp' ? d : e.key === 'ArrowDown' ? -d : 0), size.h) }))
+    }
+  }
+  const down = (e: RPointer) => { if (e.pointerType !== 'mouse' && level > 1) drag.current = { x: e.clientX, y: e.clientY } }
+  const dragMove = (e: RPointer) => {
+    const d = drag.current
+    if (!d) return
+    const dx = e.clientX - d.x, dy = e.clientY - d.y
+    drag.current = { x: e.clientX, y: e.clientY }
+    setFast(true)
+    setPos((p) => ({ x: lim(p.x + dx, size.w), y: lim(p.y + dy, size.h) }))
+  }
+  const btn = 'border border-steel-300 bg-white px-2 py-1 text-xs hover:bg-steel-100 disabled:opacity-40'
+  return (
+    <div className="space-y-1.5">
+      <div ref={box} role="button" tabIndex={0} aria-label={`${alt}. Click to zoom. Now ${level}x.`} onClick={(e) => { mouse.current = rel(e.clientX, e.clientY); next() }} onMouseMove={onMove} onKeyDown={onKey}
+        onPointerDown={down} onPointerMove={dragMove} onPointerUp={() => { drag.current = null }} onPointerCancel={() => { drag.current = null }}
+        className="relative w-full overflow-hidden border border-steel-300 bg-white select-none outline-none focus-visible:ring-2 focus-visible:ring-amber-500" style={{ aspectRatio: `${1 / ratio}`, maxHeight: '78vh', cursor: level >= MAX_LEVEL ? 'zoom-out' : 'zoom-in', touchAction: level > 1 ? 'none' : 'pan-y' }}>
+        <div style={{ width: '100%', height: '100%', transform: `translate(${pos.x}px, ${pos.y}px) scale(${level})`, transformOrigin: '0 0', transition: fast ? 'transform 0.12s ease-out' : 'transform 0.4s cubic-bezier(.22,.8,.3,1)' }}>
+          <img src={src} alt={alt} draggable={false} onLoad={(e) => { const i = e.currentTarget; if (i.naturalWidth > 0) setRatio(clamp(i.naturalHeight / i.naturalWidth, 0.5, 2)) }} className="h-full w-full object-contain" />
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5 text-xs text-steel-800 print:hidden">
+        <span aria-live="polite" className="mr-auto">{level === 1 ? 'Click the catalogue page to zoom in.' : `${level}x. Move the mouse to look around. Click to ${level >= MAX_LEVEL ? 'return to fit' : 'zoom more'}.`}</span>
+        <button type="button" className={btn} disabled={level <= 1} onClick={() => setLevel(level - 1)}>Zoom out</button>
+        <button type="button" className={btn} disabled={level >= MAX_LEVEL} onClick={() => { mouse.current = null; setLevel(level + 1) }}>Zoom in</button>
+        <button type="button" className={btn} disabled={level === 1} onClick={() => setLevel(1)}>Fit</button>
+        {onFullScreen && <button type="button" className={btn} onClick={onFullScreen}>Full screen</button>}
+      </div>
     </div>
   )
 }
@@ -426,7 +469,7 @@ export function LegendOverlay({ onClose, onFullHelp }: { onClose: () => void; on
         <ul className="space-y-2">
           <Row glyph={<span className="inline-flex gap-px">{[...'C01'].map((c, i) => <span key={i} className={box}>{c}</span>)}</span>}>Page code in boxes. Click it to open that page.</Row>
           <Row glyph={<span className="border-2 border-[#F59E0B] px-1 font-mono font-bold">S815-K450</span>}>Item code in a table. Click it to add the item to your quotation.</Row>
-          <Row glyph={<span className="font-bold">Click page</span>}>Zoom in to 2x, then 3x, then back to fit. While zoomed, move the mouse to pan.</Row>
+          <Row glyph={<span className="font-bold">Click picture</span>}>Click the catalogue page picture to zoom to 2x, then 3x, then back to fit. While zoomed, move the mouse to look around.</Row>
           <Row glyph={<span className="font-bold">Top edge</span>}>Move the mouse to the top edge of the page to open the section menu.</Row>
           <Row glyph={<span className="inline-block h-6 w-6 rounded-full" style={{ background: 'conic-gradient(#2f9e44 0 25%, #1d5a78 0 50%, #e3a008 0 75%, #8e44ad 0)' }} />}>Colour wheel: point at a wedge for its name, click to open the category.</Row>
           <Row glyph={<span className="rounded bg-green-200 px-1.5 text-xs font-semibold text-green-900">Verified</span>}>Data was checked against the original catalogue. Not available means the data is not in the system.</Row>
