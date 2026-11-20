@@ -6,7 +6,7 @@ import { useRfq } from '../lib/rfq'
 import { openDocument } from '../lib/catalogue'
 import { CodeBoxes } from './ImageViewer'
 import { searchProducts, type ProductRow } from '../lib/catalogue'
-import type { CatalogueParams, GuidePage } from '../lib/format'
+import { linkVisible, type CatalogueParams, type GuidePage } from '../lib/format'
 
 interface Spec { spec_key: string; spec_value: string; unit: string | null }
 interface Doc { id: string; title: string; doc_type: string; storage_path: string }
@@ -245,12 +245,26 @@ export function GuideResults({ params, onOpen, onClear }: { params: CataloguePar
 const clamp = (n: number, a: number, b: number) => Math.min(b, Math.max(a, n))
 export const MAX_LEVEL = 3
 
-/** The grey stage with the white page. The page has a fixed design width and is scaled to fit the window; it scrolls normally. Move to the top edge for the section menu. */
-export function PageStage({ resetKey, drawer, children }: { resetKey: string; drawer?: ReactNode; children: ReactNode }) {
+// Things a click must reach untouched: links, buttons, hotspots, table rows that open pages, form fields.
+const INTERACTIVE = 'a,button,input,select,textarea,label,summary,[role="button"],[role="dialog"],[data-nozoom],.cursor-pointer'
+
+/**
+ * The grey stage with the white page, as in a printed-catalogue viewer. The page is blank with a spinner while it loads.
+ * Click the page to zoom 1x, 2x, 3x and back, exactly where you click; while zoomed the page follows the mouse, so there are no scroll bars.
+ * Move to the top edge for the section menu.
+ */
+export function PageStage({ level, onLevel, resetKey, drawer, children }: { level: number; onLevel: (n: number) => void; resetKey: string; drawer?: ReactNode; children: ReactNode }) {
   const stage = useRef<HTMLDivElement>(null)
   const frame = useRef<HTMLDivElement>(null)
+  const mouse = useRef<{ x: number; y: number } | null>(null)
   const hold = useRef(false)
+  const raf = useRef(0)
+  const drag = useRef<{ x: number; y: number } | null>(null)
+  const levelNow = useRef(level)
+  levelNow.current = level
   const [size, setSize] = useState({ w: 1000, h: 700 })
+  const [pos, setPos] = useState({ x: 0, y: 0 })
+  const [fast, setFast] = useState(false)
   const [edge, setEdge] = useState(false)
   const [busy, setBusy] = useState(true)
 
@@ -270,29 +284,69 @@ export function PageStage({ resetKey, drawer, children }: { resetKey: string; dr
   const fitW = W * s0, fitH = Math.max(200, size.h - 24)
   const fitLeft = (size.w - fitW) / 2, fitTop = (size.h - fitH) / 2
 
+  // The page point under the cursor is the same share of the page as the cursor is of the fitted page, so a click zooms exactly where it points.
+  const place = (mx: number, my: number, lv: number) => {
+    const cw = fitW * lv, ch = fitH * lv
+    const ux = clamp((mx - fitLeft) / fitW, 0, 1), uy = clamp((my - fitTop) / fitH, 0, 1)
+    return {
+      x: cw <= size.w ? (size.w - cw) / 2 : clamp(mx - ux * cw, size.w - cw, 0),
+      y: ch <= size.h ? (size.h - ch) / 2 : clamp(my - uy * ch, size.h - ch, 0),
+    }
+  }
+
   useEffect(() => {
+    cancelAnimationFrame(raf.current)
+    const m = mouse.current ?? { x: size.w / 2, y: size.h / 2 }
+    setFast(false)
+    setPos(place(m.x, m.y, level))
+    if (level > 1) setEdge(false)
+  }, [level, size.w, size.h]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    onLevel(1)
     frame.current?.scrollTo({ top: 0 })
     setBusy(true)
     const t = setTimeout(() => setBusy(false), 380)
     return () => clearTimeout(t)
-  }, [resetKey])
+  }, [resetKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const onMove = (e: RMouse) => {
-    if (hold.current) return
     const r = stage.current?.getBoundingClientRect()
     if (!r) return
     const mx = e.clientX - r.left, my = e.clientY - r.top
-    setEdge(mx >= fitLeft && mx <= fitLeft + fitW && my >= fitTop && my <= fitTop + 36)
+    mouse.current = { x: mx, y: my }
+    if (level > 1) {
+      cancelAnimationFrame(raf.current)
+      raf.current = requestAnimationFrame(() => { if (levelNow.current <= 1) return; setFast(true); setPos(place(mx, my, levelNow.current)) })
+    } else if (!hold.current) setEdge(mx >= fitLeft && mx <= fitLeft + fitW && my >= fitTop && my <= fitTop + 36)
+  }
+  const onClick = (e: RMouse) => {
+    const t = e.target as HTMLElement
+    if (!frame.current?.contains(t) || t.closest(INTERACTIVE) || (window.getSelection()?.toString().length ?? 0) > 0) return
+    const r = stage.current?.getBoundingClientRect()
+    if (r) mouse.current = { x: e.clientX - r.left, y: e.clientY - r.top }
+    onLevel(level >= MAX_LEVEL ? 1 : level + 1)
+  }
+  // Touch: drag to move the zoomed page.
+  const down = (e: RPointer) => { if (e.pointerType !== 'mouse' && level > 1) drag.current = { x: e.clientX, y: e.clientY } }
+  const dragMove = (e: RPointer) => {
+    const d = drag.current
+    if (!d) return
+    const dx = e.clientX - d.x, dy = e.clientY - d.y
+    drag.current = { x: e.clientX, y: e.clientY }
+    setFast(true)
+    setPos((p) => ({ x: clamp(p.x + dx, Math.min(0, size.w - fitW * level), 0), y: clamp(p.y + dy, Math.min(0, size.h - fitH * level), 0) }))
   }
 
   return (
-    <div ref={stage} className="relative flex-1 min-w-0 overflow-hidden bg-[#737373] print:overflow-visible print:bg-white" onMouseMove={onMove} onMouseLeave={() => { if (!hold.current) setEdge(false) }}>
+    <div ref={stage} className="relative flex-1 min-w-0 overflow-hidden bg-[#737373] print:overflow-visible print:bg-white" onMouseMove={onMove} onClick={onClick}
+      onMouseLeave={() => { if (!hold.current) setEdge(false) }} onPointerDown={down} onPointerMove={dragMove} onPointerUp={() => { drag.current = null }} onPointerCancel={() => { drag.current = null }}>
       <div ref={frame} data-page-frame
-        className="absolute left-0 top-0 bg-white overflow-y-auto overflow-x-hidden shadow-[0_2px_18px_rgba(0,0,0,0.55)] print:!static print:!transform-none print:!w-auto print:!h-auto print:overflow-visible print:shadow-none"
-        style={{ width: W, height: fitH / s0, transform: `translate(${fitLeft}px, ${fitTop}px) scale(${s0})`, transformOrigin: '0 0', transition: 'opacity .25s', opacity: busy ? 0.35 : 1 }}>
-        {children}
+        className={`absolute left-0 top-0 bg-white overflow-y-auto overflow-x-hidden shadow-[0_2px_18px_rgba(0,0,0,0.55)] ${level > 1 ? '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : ''} print:!static print:!transform-none print:!w-auto print:!h-auto print:overflow-visible print:shadow-none`}
+        style={{ width: W, height: fitH / s0, transform: `translate(${pos.x}px, ${pos.y}px) scale(${s0 * level})`, transformOrigin: '0 0', transition: `${fast ? 'transform 0.12s ease-out' : 'transform 0.4s cubic-bezier(.22,.8,.3,1)'}`, cursor: level >= MAX_LEVEL ? 'zoom-out' : 'zoom-in', touchAction: level > 1 ? 'none' : 'pan-y' }}>
+        <div style={{ visibility: busy ? 'hidden' : 'visible' }}>{children}</div>
       </div>
-      {busy && <div className="absolute inset-0 grid place-items-center pointer-events-none z-10 print:hidden"><div role="status" aria-label="Loading page" className="h-11 w-11 rounded-full border-4 border-white/30 border-t-white animate-spin" /></div>}
+      {busy && <div className="absolute inset-0 grid place-items-center pointer-events-none z-10 print:hidden"><div role="status" aria-label="Loading page" className="h-11 w-11 rounded-full border-4 border-steel-300 border-t-steel-600 animate-spin" /></div>}
       {drawer && (
         <div aria-hidden={!edge} onMouseEnter={() => { hold.current = true }} onMouseLeave={() => { hold.current = false; setEdge(false) }}
           className="absolute z-20 print:hidden" style={{ left: fitLeft, width: fitW, top: fitTop, transform: edge ? 'translateY(0)' : 'translateY(-115%)', visibility: edge ? 'visible' : 'hidden', transition: `transform .3s ease, visibility 0s linear ${edge ? '0s' : '.3s'}` }}>
@@ -303,7 +357,7 @@ export function PageStage({ resetKey, drawer, children }: { resetKey: string; dr
 }
 
 /** What each zoomable catalogue picture tells the toolbar. Each picture keeps its own zoom level. */
-export interface ZoomApi { report: (id: string, level: number, set: (n: number) => void) => void; release: (id: string) => void; claim: (id: string) => void }
+export interface ZoomApi { report: (id: string, level: number, set: (n: number) => void) => void; release: (id: string) => void; claim: (id: string) => void; /** The whole page zooms (the Guide), so a picture does not zoom on its own. */ pageZoom?: boolean }
 export const ZoomCtx = createContext<ZoomApi | null>(null)
 
 /** Keeps track of the zoomable pictures on the page. The toolbar zoom buttons act on the picture you last pointed at. */
@@ -338,7 +392,7 @@ export function ZoomArea({ label, hint, fill, boxStyle, resetKey, onFullScreen, 
   const levelNow = useRef(level)
   levelNow.current = level
 
-  useEffect(() => { ctx?.report(id, level, setLevel) }, [level]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!ctx?.pageZoom) ctx?.report(id, level, setLevel) }, [level]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => ctx?.release(id), []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setLevel(1) }, [resetKey])
   useLayoutEffect(() => {
@@ -390,6 +444,14 @@ export function ZoomArea({ label, hint, fill, boxStyle, resetKey, onFullScreen, 
     setPos((p) => ({ x: lim(p.x + dx, size.w), y: lim(p.y + dy, size.h) }))
   }
   const btn = 'border border-steel-300 bg-white px-2 py-1 text-xs hover:bg-steel-100 disabled:opacity-40'
+  if (ctx?.pageZoom) {
+    return (
+      <div className="space-y-1.5">
+        <div className="relative w-full overflow-hidden" style={boxStyle}><div style={{ width: '100%', height: fill ? '100%' : undefined }}>{children}</div></div>
+        {onFullScreen && <div className="flex justify-end print:hidden"><button type="button" className={btn} onClick={onFullScreen}>Full screen</button></div>}
+      </div>
+    )
+  }
   return (
     <div className="space-y-1.5">
       <div ref={box} role="group" tabIndex={0} aria-label={`${label} Now ${level}x.`} data-zoom-area
@@ -497,7 +559,7 @@ export function LegendOverlay({ onClose, onFullHelp }: { onClose: () => void; on
         <ul className="space-y-2">
           <Row glyph={<span className="inline-flex gap-px">{[...'C01'].map((c, i) => <span key={i} className={box}>{c}</span>)}</span>}>Page code in boxes. Click it to open that page.</Row>
           <Row glyph={<span className="border-2 border-[#F59E0B] px-1 font-mono font-bold">S815-K450</span>}>Item code in a table. Click it to add the item to your quotation.</Row>
-          <Row glyph={<span className="font-bold">Click picture</span>}>Click a catalogue picture to zoom to 2x, then 3x, then back to fit. Codes on it still open their pages. While zoomed, move the mouse to look around.</Row>
+          <Row glyph={<span className="font-bold">Click page</span>}>Click the page to zoom to 2x, then 3x, then back to fit. Codes and buttons on it still work. While zoomed, move the mouse to look around.</Row>
           <Row glyph={<span className="font-bold">Top edge</span>}>Move the mouse to the top edge of the page to open the section menu.</Row>
           <Row glyph={<span className="inline-block h-6 w-6 rounded-full" style={{ background: 'conic-gradient(#2f9e44 0 25%, #1d5a78 0 50%, #e3a008 0 75%, #8e44ad 0)' }} />}>Colour wheel: point at a wedge for its name, click to open the category.</Row>
           <Row glyph={<span className="rounded bg-green-200 px-1.5 text-xs font-semibold text-green-900">Verified</span>}>Data was checked against the original catalogue. Not available means the data is not in the system.</Row>
@@ -506,4 +568,28 @@ export function LegendOverlay({ onClose, onFullHelp }: { onClose: () => void; on
       </div>
     </div>
   )
+}
+
+/* ---- Link sections: shown to the people an administrator chooses (Admin, Guide illustrations and links) ---- */
+let linkCache: { at: number; value: Record<string, string> } | null = null
+export function clearLinkSectionsCache() { linkCache = null }
+
+/** show(key) is true when the section may be seen by this account. Before the settings load it is false; with no setting (or before script 0016) it is true. */
+export function useLinkSections(enabled = true) {
+  const { role } = useAuth()
+  const [vals, setVals] = useState<Record<string, string> | null>(enabled && linkCache && Date.now() - linkCache.at < 60000 ? linkCache.value : null)
+  useEffect(() => {
+    if (!enabled) return
+    if (linkCache && Date.now() - linkCache.at < 60000) { setVals(linkCache.value); return }
+    let live = true
+    void supabase.from('guide_settings').select('key,value').then(({ data, error }) => {
+      const v: Record<string, string> = {}
+      if (!error) for (const r of (data ?? []) as { key: string; value: string }[]) v[r.key] = r.value
+      linkCache = { at: Date.now(), value: v }
+      if (live) setVals(v)
+    })
+    return () => { live = false }
+  }, [enabled])
+  const isAdmin = role === 'admin' || role === 'super_admin'
+  return { show: (key: string) => !enabled || (vals !== null && linkVisible(vals[key], isAdmin)) }
 }

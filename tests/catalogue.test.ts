@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { NA, PAGE_SIZE, buildPages, autoCallouts, clampPct, pointToPct, resolveCallouts, type Callout, findPage, guideUrl, isEmail, isOtpCode, mailResult, pageCount, pageIndexByCode, parseEmailList, parseParams, show, toRpcArgs, type MailLogRow } from '../src/lib/format'
+import { NA, PAGE_SIZE, buildPages, autoCallouts, linkVisible, LINK_SECTIONS, clampPct, pointToPct, resolveCallouts, type Callout, findPage, guideUrl, isEmail, isOtpCode, mailResult, pageCount, pageIndexByCode, parseEmailList, parseParams, show, toRpcArgs, type MailLogRow } from '../src/lib/format'
 
 describe('catalogue helpers', () => {
   it('shows "Not available" for missing values, never invents data', () => {
@@ -119,5 +119,25 @@ describe('automatic illustration layout', () => {
   it('centres a single label and returns nothing for no targets', () => {
     expect(autoCallouts(t(1))[0].ly).toBe(50)
     expect(autoCallouts([])).toEqual([])
+  })
+})
+
+describe('guide link sections', () => {
+  it('shows a section to everyone when it is public or has no setting yet', () => {
+    expect(linkVisible('public', false)).toBe(true)
+    expect(linkVisible(undefined, false)).toBe(true)
+  })
+  it('shows an admin-only section to administrators only', () => {
+    expect(linkVisible('admin', true)).toBe(true)
+    expect(linkVisible('admin', false)).toBe(false)
+  })
+  it('hides an off section from everyone, administrators included', () => {
+    expect(linkVisible('off', true)).toBe(false)
+    expect(linkVisible('off', false)).toBe(false)
+  })
+  it('lists each section once', () => {
+    const keys = LINK_SECTIONS.map(([k]) => k)
+    expect(new Set(keys).size).toBe(keys.length)
+    expect(keys).toContain('share_links')
   })
 })

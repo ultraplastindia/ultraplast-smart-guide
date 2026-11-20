@@ -113,3 +113,14 @@ Optional. It lets a Super Admin create roles (for example User, Admin, Guide onl
 Panels control the menu and the screens. What a person may read or change is still decided by their permissions, which the database enforces. The Guide is self-contained: inside it, filter links, documents, BOM and compare buttons no longer send anyone to Catalogue, Documents, My BOM or Compare.
 
 To remove the feature: `drop table public.user_panel_roles, public.panel_roles;` (the functions can stay).
+
+
+## 17. Guide link sections: who sees them (migration 0016)
+
+Optional. It lets an administrator choose, for each group of links in the Guide, whether it is visible to everyone (public), to administrators only, or hidden. Until you change a setting every section is visible to everyone, as before.
+
+1. **Run the SQL.** In Supabase open **SQL Editor**, paste the whole file `supabase/migrations/0016_guide_link_sections.sql` and press **Run**. Run it once.
+2. **Choose who sees what.** Sign in as an administrator, open **Admin, Guide illustrations and links** and go to **Link sections**. For Share link, Related links and Product assistance links choose **Public**, **Admin only** or **Off**. It saves at once.
+3. **Check it.** Sign in as an ordinary user and open the Guide. A section set to Admin only or Off is not shown. Reload to see a change.
+
+This controls what the Guide screen shows. The data behind it and the permissions are unchanged. To undo, set every section back to Public, or run `drop table public.guide_settings;`.

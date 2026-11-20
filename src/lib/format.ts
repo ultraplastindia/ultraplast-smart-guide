@@ -117,6 +117,21 @@ export function autoCallouts(targets: AutoTarget[], max = 6): Callout[] {
   return [...place(left, 13, 40), ...place(right, 87, 60)]
 }
 
+// ---- Guide link sections: who sees them (set by an administrator) ----
+export type LinkSetting = 'off' | 'admin' | 'public'
+export const LINK_SECTIONS = [
+  ['share_links', 'Share link', 'The Share link button in the toolbar and the copy-link bar on each page.'],
+  ['related_links', 'Related links', 'The Related products and Related catalogues boxes.'],
+  ['assist_links', 'Product assistance links', 'The Additional product assistance button and its drawer of quick links.'],
+] as const
+
+/** off: nobody. admin: administrators only. public: everyone who can open the Guide. No setting yet: everyone, as before. */
+export function linkVisible(setting: string | undefined, isAdmin: boolean): boolean {
+  if (setting === 'off') return false
+  if (setting === 'admin') return isAdmin
+  return true
+}
+
 // ---- Email settings and sign-in codes ----
 export const isEmail = (s: string) => s.length <= 254 && /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/.test(s)
 

@@ -12,7 +12,7 @@ import { CodeBoxes, Frame } from '../components/ImageViewer'
 import { AddToRfqButton } from '../components/RfqDrawer'
 import ShareBar from '../components/ShareBar'
 import GuideIllustration from '../components/GuideIllustration'
-import ItemDetailsModal, { CategoryWheel, GuideResults, LegendOverlay, MAX_LEVEL, PageStage, ProductAssist, SkuCode, ZoomCtx, useZoomRegistry } from '../components/GuidePanels'
+import ItemDetailsModal, { CategoryWheel, GuideResults, LegendOverlay, MAX_LEVEL, PageStage, ProductAssist, SkuCode, ZoomCtx, useLinkSections } from '../components/GuidePanels'
 import { PANELS } from '../lib/access'
 import ProductDetail from './ProductDetail'
 
@@ -33,7 +33,7 @@ function Sheet({ code, title, cats, currentCatId, accent, onOpenCat, onOpenIndex
             return (
               <div key={c.id} className="bg-white">
                 <button title={c.name} onClick={() => onOpenCat(c.id)} aria-current={active} style={{ borderLeftColor: color(i), background: active ? color(i) : `${color(i)}22` }}
-                  className={`w-full h-9 text-left px-2 border-l-4 text-[10px] sm:text-[11px] leading-tight font-semibold overflow-hidden ${active ? 'text-white' : 'text-steel-950 hover:brightness-95'}`}>{c.name}</button>
+                  className={`w-full h-9 text-left px-2 border-l-4 text-[10px] sm:text-[11px] leading-tight font-semibold overflow-hidden ${active ? 'text-white' : 'text-steel-950 hover:!bg-red-200 hover:!text-red-900'}`}>{c.name}</button>
               </div>)
           })}
         </div>
@@ -145,7 +145,7 @@ function IndexPage({ cats, thumbs, open }: { cats: GuideCat[]; thumbs: Map<strin
 interface GuideDetail { id: string; brand: string | null; material: string | null; pitch_mm: number | null; width_mm: number | null; thickness_mm: number | null }
 const CELL_LINK = 'underline decoration-dotted underline-offset-2 hover:text-brand-green'
 
-function CategoryPage({ cat, prods, pages, onOpen, thumbsVersion, accent, onGo, onDetails }: { cat: GuideCat; prods: Map<string, GuideProd>; pages: GuidePage[]; onOpen: (id: string) => void; thumbsVersion: number; accent?: string; onGo?: (url: string) => void; onDetails?: (id: string) => void }) {
+function CategoryPage({ cat, prods, pages, onOpen, thumbsVersion, accent, onGo, onDetails, showShare = true, showRelated = true }: { cat: GuideCat; prods: Map<string, GuideProd>; pages: GuidePage[]; onOpen: (id: string) => void; thumbsVersion: number; accent?: string; onGo?: (url: string) => void; onDetails?: (id: string) => void; showShare?: boolean; showRelated?: boolean }) {
   const rfq = useRfq()
   const [ids, setIds] = useState<string[] | null>(null)
   const [shown, setShown] = useState(60)
@@ -214,7 +214,7 @@ function CategoryPage({ cat, prods, pages, onOpen, thumbsVersion, accent, onGo, 
   const enc = encodeURIComponent
   return (
     <div className="space-y-4">
-      {cat.id !== 'other' && <ShareBar kind="category" id={cat.id} name={cat.name} />}
+      {showShare && cat.id !== 'other' && <ShareBar kind="category" id={cat.id} name={cat.name} />}
       {cat.id !== 'other' && onGo && <GuideIllustration kind="category" pageId={cat.id} pages={pages} onOpen={onGo} accent={accent} fallback={{ imageUrl: ids.map((x) => thumbs.get(x)).find(Boolean) ?? null, targets: [...related.slice(0, 3).map((r) => ({ kind: 'category' as const, id: r.id, label: r.name })), ...ids.slice(0, 3).map((x) => ({ kind: 'product' as const, id: x, label: prods.get(x)?.name ?? '' }))] }} />}
 
       <section aria-label={`Index of ${cat.name}`} className="border border-steel-300 rounded-md overflow-hidden">
@@ -224,7 +224,7 @@ function CategoryPage({ cat, prods, pages, onOpen, thumbsVersion, accent, onGo, 
         </ul>
       </section>
 
-      {related.length > 0 && (
+      {showRelated && related.length > 0 && (
         <section aria-label="Related catalogues" className="border border-steel-300 rounded-md overflow-hidden">
           <h2 className="bg-steel-100 px-3 py-1.5 text-sm font-bold uppercase tracking-wide text-center">Related catalogues · go to:</h2>
           <ul className="p-2 grid gap-2 sm:grid-cols-2">
@@ -280,9 +280,9 @@ export default function Guide() {
   const [loaded, setLoaded] = useState(false)
   const [err, setErr] = useState('')
   const [panel, setPanel] = useState<'' | 'contents' | 'thumbs' | 'help' | 'share' | 'assist'>('')
-  const { value: zoomApi, active: zoomActive, hasZoom } = useZoomRegistry()
-  const level = zoomActive?.level ?? 1
-  const setLevel = (n: number) => zoomActive?.set(n)
+  const [level, setLevel] = useState(1)
+  const zoomApi = useMemo(() => ({ report: () => undefined, release: () => undefined, claim: () => undefined, pageZoom: true }), [])
+  const links = useLinkSections()
   const [legend, setLegend] = useState(() => { try { return localStorage.getItem('guide-legend-seen') !== '1' } catch { return true } })
   const [menuOpen, setMenuOpen] = useState(false)
   const [cookies, setCookies] = useState(false)
@@ -450,14 +450,14 @@ export default function Guide() {
           </button>
         </div>
         <div className="flex items-center gap-0.5 relative">
-          <button className={ib} title={hasZoom ? 'Zoom out' : 'Zoom works on the catalogue picture on a category or product page'} aria-label="Zoom out" disabled={!hasZoom || level <= 1} onClick={() => setLevel(level - 1)}><ZoomOut size={22} /></button>
+          <button className={ib} title="Zoom out" aria-label="Zoom out" disabled={level <= 1} onClick={() => setLevel(level - 1)}><ZoomOut size={22} /></button>
           <span className="text-xs text-white/80 w-8 text-center tabular-nums" aria-live="polite">{level}x</span>
-          <button className={ib} title={hasZoom ? 'Zoom in' : 'Zoom works on the catalogue picture on a category or product page'} aria-label="Zoom in" disabled={!hasZoom || level >= MAX_LEVEL} onClick={() => setLevel(level + 1)}><ZoomIn size={22} /></button>
-          <button className={ib} title="Fit the catalogue picture" aria-label="Fit to screen" disabled={!hasZoom || level === 1} onClick={() => setLevel(1)}><Maximize2 size={20} /></button>
+          <button className={ib} title="Zoom in" aria-label="Zoom in" disabled={level >= MAX_LEVEL} onClick={() => setLevel(level + 1)}><ZoomIn size={22} /></button>
+          <button className={ib} title="Fit to screen" aria-label="Fit to screen" disabled={level === 1} onClick={() => setLevel(1)}><Maximize2 size={20} /></button>
           <button className={ib} title="Download this page as PDF" aria-label="Download this page as PDF" onClick={() => void doPdf('download')}><FileDown size={22} /></button>
           <button className={ib} title="Print this page" aria-label="Print this page" onClick={() => void doPdf('print')}><Printer size={22} /></button>
-          <button className={ib} title="Share link" aria-label="Share link" aria-pressed={panel === 'share'} onClick={() => setPanel(panel === 'share' ? '' : 'share')}><Link2 size={22} /></button>
-          <button className={ib} title="Additional product assistance" aria-label="Additional product assistance" aria-pressed={panel === 'assist'} onClick={() => setPanel(panel === 'assist' ? '' : 'assist')}><LifeBuoy size={22} /></button>
+          {links.show('share_links') && <button className={ib} title="Share link" aria-label="Share link" aria-pressed={panel === 'share'} onClick={() => setPanel(panel === 'share' ? '' : 'share')}><Link2 size={22} /></button>}
+          {links.show('assist_links') && <button className={ib} title="Additional product assistance" aria-label="Additional product assistance" aria-pressed={panel === 'assist'} onClick={() => setPanel(panel === 'assist' ? '' : 'assist')}><LifeBuoy size={22} /></button>}
           <button className={ib} title="Help and legend" aria-label="Help and legend" aria-pressed={legend} onClick={() => (legend ? closeLegend() : setLegend(true))}><CircleHelp size={22} /></button>
         </div>
         <button onClick={() => rfq.setOpen(true)} className="ml-auto flex items-center gap-2 bg-[#5A9216] hover:bg-[#65A30D] text-white px-3 py-1 rounded-sm text-left">
@@ -518,7 +518,7 @@ export default function Guide() {
             </div>
           </div>)}
 
-        {panel === 'share' && cur && (
+        {panel === 'share' && cur && links.show('share_links') && (
           <div className="absolute right-3 top-2 z-30 bg-white border border-steel-300 rounded-md shadow-xl p-3 max-w-sm print:hidden" role="dialog" aria-label="Share this page">
             <div className="flex justify-between mb-2"><h2 className="font-semibold text-sm">Share this page</h2><button onClick={() => setPanel('')} aria-label="Close">✕</button></div>
             {cur.kind === 'index'
@@ -528,17 +528,17 @@ export default function Guide() {
 
         {legend && <LegendOverlay onClose={closeLegend} onFullHelp={() => { closeLegend(); setPanel('help') }} />}
 
-        {panel === 'assist' && <ProductAssist cur={cur} pages={pages} onGo={(p) => go(pages.indexOf(p))} onClose={() => setPanel('')} />}
+        {panel === 'assist' && links.show('assist_links') && <ProductAssist cur={cur} pages={pages} onGo={(p) => go(pages.indexOf(p))} onClose={() => setPanel('')} />}
 
         <button className="hidden md:grid absolute left-1 top-1/2 -translate-y-1/2 z-10 h-24 w-12 place-items-center text-white/45 hover:text-white/90 disabled:opacity-0 print:hidden" aria-label="Previous page" disabled={idx <= 0} onClick={() => go(idx - 1)}><ChevronLeft size={44} strokeWidth={1.5} /></button>
         <button className="hidden md:grid absolute right-1 top-1/2 -translate-y-1/2 z-10 h-24 w-12 place-items-center text-white/45 hover:text-white/90 disabled:opacity-0 print:hidden" aria-label="Next page" disabled={idx >= pages.length - 1} onClick={() => go(idx + 1)}><ChevronRight size={44} strokeWidth={1.5} /></button>
 
         <ZoomCtx.Provider value={zoomApi}>
-        <PageStage resetKey={cur ? `${cur.kind}:${cur.id}:${hasFilters ? 'f' : ''}` : ''} drawer={drawer}>
+        <PageStage level={level} onLevel={setLevel} resetKey={cur ? `${cur.kind}:${cur.id}:${hasFilters ? 'f' : ''}` : ''} drawer={drawer}>
           {cur && (
             <Sheet code={cur.code} title={cur.title} cats={catList} currentCatId={currentCatId} accent={accent} onOpenCat={openCat} onOpenIndex={() => go(0)} narrow={cur.kind === 'index'}>
               {cur.kind === 'index' && (hasFilters ? <GuideResults params={filters} onOpen={openProd} onClear={() => nav('/guide')} /> : <IndexPage cats={cats} thumbs={catThumbs} open={openCat} />)}
-              {cur.kind === 'category' && <CategoryPage cat={{ id: cur.id, name: cur.title }} prods={prodMap} pages={pages} onOpen={openProd} thumbsVersion={0} accent={accent} onGo={(u) => nav(u)} onDetails={setDetailId} />}
+              {cur.kind === 'category' && <CategoryPage cat={{ id: cur.id, name: cur.title }} prods={prodMap} pages={pages} onOpen={openProd} thumbsVersion={0} accent={accent} onGo={(u) => nav(u)} onDetails={setDetailId} showShare={links.show('share_links')} showRelated={links.show('related_links')} />}
               {cur.kind === 'product' && (<div className="space-y-4"><div className="flex justify-end print:hidden"><button type="button" onClick={() => setDetailId(cur.id)} className="inline-flex items-center gap-1.5 border border-steel-300 bg-white px-3 py-1.5 text-sm hover:bg-steel-100"><Info size={16} aria-hidden /> Item details and downloads</button></div><GuideIllustration kind="product" pageId={cur.id} pages={pages} onOpen={(u) => nav(u)} accent={accent} /><ProductDetail sheet /></div>)}
             </Sheet>)}
         </PageStage>

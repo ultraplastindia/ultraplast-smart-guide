@@ -19,7 +19,7 @@ Login (password and email code), request access, pending/denied pages; category,
 - `package-lock.json` is not in the repository: run `npm install` once and commit it, because CI uses `npm ci`.
 - Guide illustrations are not included in PDFs or customer share links, and callouts are placed by hand (no automatic import).
 - Table item codes (such as the highlighted VG- codes on a System Plast page) are not clickable.
-- Item details popup, assistance drawer, Guide results, automatic illustrations and the panel guards were tested with mock data only, not against a live Supabase project. Script 0015 (panel roles) is untested on a real database.
+- Item details popup, assistance drawer, Guide results, automatic illustrations and the panel guards were tested with mock data only, not against a live Supabase project. Scripts 0015 (panel roles) and 0016 (link sections) are untested on a real database.
 - The catalogue-style viewer (catalogue picture zoom, top-edge menu, colour wheel, quick-add codes, legend) was tested with mock data in a browser, not with real Ultraplast pages on a phone or in print.
 - Panel roles hide menus and screens; they are not a data-security boundary (permissions and row-level security are).
 - Rate limiting on admin functions; server-side-only export enforcement.

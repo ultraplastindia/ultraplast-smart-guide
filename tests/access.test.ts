@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canAccessProtected, fallbackStatus, routeForStatus, type AccessStatus, PANELS, canSeePanel } from '../src/lib/access'
+import { canAccessProtected, fallbackStatus, routeForStatus, type AccessStatus, PANELS, canSeePanel, availableActions } from '../src/lib/access'
 
 const ALL: AccessStatus[] = ['invited', 'pending_verification', 'pending_approval', 'approved', 'rejected', 'suspended']
 
@@ -39,5 +39,20 @@ describe('panel access', () => {
     const keys = PANELS.map(([k]) => k)
     expect(new Set(keys).size).toBe(keys.length)
     expect(PANELS.find(([k]) => k === 'guide')?.[2]).toBe('/guide')
+  })
+})
+
+describe('availableActions (UX hints; server re-checks)', () => {
+  it('offers approve/reject for pending users', () => {
+    expect(availableActions('pending_approval', 'admin', null)).toEqual(['approve', 'reject'])
+  })
+  it('hides all actions on administrators unless caller is Super Admin', () => {
+    expect(availableActions('approved', 'admin', 'admin')).toEqual([])
+    expect(availableActions('approved', 'admin', 'super_admin')).toEqual([])
+    expect(availableActions('approved', 'super_admin', 'admin')).toEqual(['suspend'])
+  })
+  it('offers reactivate only for suspended users', () => {
+    expect(availableActions('suspended', 'super_admin', 'approved_user')).toEqual(['reactivate'])
+    expect(availableActions('pending_verification', 'super_admin', null)).toEqual([])
   })
 })

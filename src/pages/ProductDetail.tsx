@@ -8,7 +8,7 @@ import AddToBom, { CompareToggle } from '../components/AddToBom'
 import ShareBar from '../components/ShareBar'
 import { CodeBoxes, Frame, Gallery } from '../components/ImageViewer'
 import { AddToRfqButton } from '../components/RfqDrawer'
-import { SkuCode, ZoomImage } from '../components/GuidePanels'
+import { SkuCode, ZoomImage, useLinkSections } from '../components/GuidePanels'
 
 interface Detail {
   id: string; product_code: string; name: string; category_id: string | null; brand: string | null; description: string | null; material: string | null
@@ -38,6 +38,7 @@ function InfoCard({ icon, to, children }: { icon: React.ReactNode; to?: string; 
 export default function ProductDetail({ sheet = false }: { sheet?: boolean }) {
   const { id, kind } = useParams()
   const nav = useNavigate()
+  const links = useLinkSections(Boolean(kind))
   const [p, setP] = useState<Detail | null>(null)
   const [related, setRelated] = useState<{ id: string; product_code: string; name: string }[]>([])
   const [relThumbs, setRelThumbs] = useState<Map<string, string>>(new Map())
@@ -167,16 +168,16 @@ export default function ProductDetail({ sheet = false }: { sheet?: boolean }) {
       : <Link className={LINK} to={find(qs(String(v)))} title="See all products with this value" onClick={(e) => e.stopPropagation()}>{String(v)}</Link>)
     return (
       <article className="space-y-4">
-        <ShareBar kind="product" id={p.id} name={p.name} />
+        {links.show('share_links') && <ShareBar kind="product" id={p.id} name={p.name} />}
         <div><h2 className="text-lg font-bold">{p.name}</h2>{p.description && <p className="text-sm text-steel-800 mt-1">{p.description}</p>}</div>
-        <div className="grid gap-4 lg:grid-cols-[10.5rem_minmax(0,1fr)_12.5rem]">
-          <aside aria-label="Go to related products" className="space-y-3 order-2 lg:order-1">
+        <div className={`grid gap-4 ${links.show('related_links') ? 'lg:grid-cols-[10.5rem_minmax(0,1fr)_12.5rem]' : 'lg:grid-cols-[minmax(0,1fr)_12.5rem]'}`}>
+          {links.show('related_links') && <aside aria-label="Go to related products" className="space-y-3 order-2 lg:order-1">
             <h3 className="text-xs font-bold uppercase tracking-wide">Related products · go to:</h3>
             {related.length === 0 ? <p className="text-xs text-steel-600">No related products linked yet.</p> : (
               <ul className="space-y-3">{related.map((r) => (
                 <li key={r.id}><Link to={toProd(r.id)} className="group block text-center border border-steel-300 rounded-md p-2 bg-white hover:shadow-md hover:border-brand-green">
                   <Frame src={relThumbs.get(r.id)} alt={r.name} /><span className="block mt-1 text-[11px] leading-tight font-semibold">{r.name}</span><span className="mt-1 inline-block"><CodeBoxes code={r.product_code} /></span></Link></li>))}</ul>)}
-          </aside>
+          </aside>}
           <div className="space-y-5 min-w-0 order-1 lg:order-2">
             <section aria-label="Images"><Gallery key={preview ? 'cat' : 'img'} name={p.name} images={galleryImages} initial={inGuide && preview ? galleryImages.length - 1 : 0} renderMain={inGuide ? (im, openFull) => (/^Catalogue page/.test(im.caption ?? '') ? <ZoomImage src={im.url} alt={im.caption ?? p.name} onFullScreen={openFull} /> : null) : undefined} />
               {galleryImages.length === 0 && <p className="mt-2 text-sm text-steel-600">No images yet. See page {show(p.source_page)} of the original catalogue.</p>}</section>

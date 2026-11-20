@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as RPointerEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { clampPct, pointToPct, type Callout } from '../lib/format'
+import { LINK_SECTIONS, clampPct, pointToPct, type Callout } from '../lib/format'
 import { toCallout } from '../components/GuideIllustration'
 import ProductPicker, { type PickedProduct } from '../components/ProductPicker'
+import { clearLinkSectionsCache } from '../components/GuidePanels'
 
 interface Cat { id: string; name: string }
 type Kind = 'category' | 'product'
@@ -193,6 +194,47 @@ export default function AdminGuideIllustrations() {
                 <td className="px-3 py-2 text-right"><button className="text-red-700 underline" onClick={() => void del(c.id)}>Delete</button></td>
               </tr>))}</tbody></table></div>)}
       </>)}
+      <LinkSectionsAdmin />
     </div>
+  )
+}
+
+const AUDIENCE = [['public', 'Public: everyone who can open the Guide'], ['admin', 'Admin only: administrators and Super Admins'], ['off', 'Off: hidden for everyone']] as const
+
+/** Choose who sees each link section of the Guide. Takes effect when people next open or reload the Guide. */
+function LinkSectionsAdmin() {
+  const [vals, setVals] = useState<Record<string, string>>({})
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [ready, setReady] = useState(true)
+  useEffect(() => {
+    void supabase.from('guide_settings').select('key,value').then(({ data, error }) => {
+      if (error) { setReady(false); return }
+      setVals(Object.fromEntries(((data ?? []) as { key: string; value: string }[]).map((r) => [r.key, r.value])))
+    })
+  }, [])
+  const change = async (key: string, value: string) => {
+    setMsg(null)
+    const { error } = await supabase.rpc('admin_set_guide_setting', { p_key: key, p_value: value })
+    if (error) return setMsg({ ok: false, text: error.message })
+    clearLinkSectionsCache()
+    setVals((v) => ({ ...v, [key]: value }))
+    setMsg({ ok: true, text: 'Saved. People see the change the next time they open or reload the Guide.' })
+  }
+  return (
+    <section aria-labelledby="ls" className="space-y-3 max-w-3xl border-t border-steel-300 pt-5">
+      <h2 id="ls" className="text-xl font-bold">Link sections</h2>
+      <p className="text-sm text-steel-600">Choose who sees each group of links in the Guide: everyone who can open it (public), administrators only, or nobody. Until you change them, every section is visible to everyone.</p>
+      {!ready && <p role="alert" className="text-sm text-red-700">Run the database script 0016_guide_link_sections.sql first (see DEPLOYMENT.md).</p>}
+      {msg && <p role="status" className={`text-sm ${msg.ok ? 'text-green-800' : 'text-red-700'}`}>{msg.text}</p>}
+      <ul className="space-y-2">
+        {LINK_SECTIONS.map(([key, name, text]) => (
+          <li key={key} className="grid gap-2 sm:grid-cols-[1fr_16rem] items-center border border-steel-300 bg-white p-3">
+            <div><label htmlFor={`ls-${key}`} className="font-semibold">{name}</label><p className="text-sm text-steel-600">{text}</p></div>
+            <select id={`ls-${key}`} disabled={!ready} value={vals[key] ?? 'public'} onChange={(e) => void change(key, e.target.value)} className="border border-steel-300 px-2 py-1.5 bg-white">
+              {AUDIENCE.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+            </select>
+          </li>))}
+      </ul>
+    </section>
   )
 }
