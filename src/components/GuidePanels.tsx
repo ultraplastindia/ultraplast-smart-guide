@@ -253,7 +253,7 @@ const INTERACTIVE = 'a,button,input,select,textarea,label,summary,[role="button"
  * Click the page to zoom 1x, 2x, 3x and back, exactly where you click; while zoomed the page follows the mouse, so there are no scroll bars.
  * Move to the top edge for the section menu.
  */
-export function PageStage({ level, onLevel, resetKey, drawer, children }: { level: number; onLevel: (n: number) => void; resetKey: string; drawer?: ReactNode; children: ReactNode }) {
+export function PageStage({ level, onLevel, resetKey, drawer, zoomable = true, children }: { level: number; onLevel: (n: number) => void; resetKey: string; drawer?: ReactNode; zoomable?: boolean; children: ReactNode }) {
   const stage = useRef<HTMLDivElement>(null)
   const frame = useRef<HTMLDivElement>(null)
   const mouse = useRef<{ x: number; y: number } | null>(null)
@@ -315,14 +315,14 @@ export function PageStage({ level, onLevel, resetKey, drawer, children }: { leve
     if (!r) return
     const mx = e.clientX - r.left, my = e.clientY - r.top
     mouse.current = { x: mx, y: my }
-    if (level > 1) {
+    if (zoomable && level > 1) {
       cancelAnimationFrame(raf.current)
       raf.current = requestAnimationFrame(() => { if (levelNow.current <= 1) return; setFast(true); setPos(place(mx, my, levelNow.current)) })
     } else if (!hold.current) setEdge(mx >= fitLeft && mx <= fitLeft + fitW && my >= fitTop && my <= fitTop + 36)
   }
   const onClick = (e: RMouse) => {
     const t = e.target as HTMLElement
-    if (!frame.current?.contains(t) || t.closest(INTERACTIVE) || (window.getSelection()?.toString().length ?? 0) > 0) return
+    if (!zoomable || !frame.current?.contains(t) || t.closest(INTERACTIVE) || (window.getSelection()?.toString().length ?? 0) > 0) return
     const r = stage.current?.getBoundingClientRect()
     if (r) mouse.current = { x: e.clientX - r.left, y: e.clientY - r.top }
     onLevel(level >= MAX_LEVEL ? 1 : level + 1)
@@ -343,7 +343,7 @@ export function PageStage({ level, onLevel, resetKey, drawer, children }: { leve
       onMouseLeave={() => { if (!hold.current) setEdge(false) }} onPointerDown={down} onPointerMove={dragMove} onPointerUp={() => { drag.current = null }} onPointerCancel={() => { drag.current = null }}>
       <div ref={frame} data-page-frame
         className={`absolute left-0 top-0 bg-white overflow-y-auto overflow-x-hidden shadow-[0_2px_18px_rgba(0,0,0,0.55)] ${level > 1 ? '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : ''} print:!static print:!transform-none print:!w-auto print:!h-auto print:overflow-visible print:shadow-none`}
-        style={{ width: W, height: fitH / s0, transform: `translate(${pos.x}px, ${pos.y}px) scale(${s0 * level})`, transformOrigin: '0 0', transition: `${fast ? 'transform 0.12s ease-out' : 'transform 0.4s cubic-bezier(.22,.8,.3,1)'}`, cursor: level >= MAX_LEVEL ? 'zoom-out' : 'zoom-in', touchAction: level > 1 ? 'none' : 'pan-y' }}>
+        style={{ width: W, height: fitH / s0, transform: `translate(${pos.x}px, ${pos.y}px) scale(${s0 * level})`, transformOrigin: '0 0', transition: `${fast ? 'transform 0.12s ease-out' : 'transform 0.4s cubic-bezier(.22,.8,.3,1)'}`, cursor: zoomable ? (level >= MAX_LEVEL ? 'zoom-out' : 'zoom-in') : undefined, touchAction: zoomable && level > 1 ? 'none' : 'pan-y' }}>
         <div style={{ visibility: busy ? 'hidden' : 'visible' }}>{children}</div>
       </div>
       {busy && <div className="absolute inset-0 grid place-items-center pointer-events-none z-10 print:hidden"><div role="status" aria-label="Loading page" className="h-11 w-11 rounded-full border-4 border-steel-300 border-t-steel-600 animate-spin" /></div>}
@@ -455,7 +455,7 @@ export function ZoomArea({ label, hint, fill, boxStyle, resetKey, onFullScreen, 
   return (
     <div className="space-y-1.5">
       <div ref={box} role="group" tabIndex={0} aria-label={`${label} Now ${level}x.`} data-zoom-area
-        onClick={(e) => { claim(); if ((e.target as HTMLElement).closest('button,a,input,select,textarea,[data-nozoom]')) return; mouse.current = rel(e.clientX, e.clientY); next() }}
+        onClick={(e) => { claim(); if ((e.target as HTMLElement).closest('button,a,input,select,textarea,[role="button"],[role="link"],[data-nozoom],.cursor-pointer')) return; mouse.current = rel(e.clientX, e.clientY); next() }}
         onMouseEnter={claim} onFocus={claim} onMouseMove={onMove} onKeyDown={onKey}
         onPointerDown={down} onPointerMove={dragMove} onPointerUp={() => { drag.current = null }} onPointerCancel={() => { drag.current = null }}
         className="relative w-full overflow-hidden select-none outline-none focus-visible:ring-2 focus-visible:ring-amber-500" style={{ ...boxStyle, cursor: level >= MAX_LEVEL ? 'zoom-out' : 'zoom-in', touchAction: level > 1 ? 'none' : 'pan-y' }}>
@@ -559,7 +559,7 @@ export function LegendOverlay({ onClose, onFullHelp }: { onClose: () => void; on
         <ul className="space-y-2">
           <Row glyph={<span className="inline-flex gap-px">{[...'C01'].map((c, i) => <span key={i} className={box}>{c}</span>)}</span>}>Page code in boxes. Click it to open that page.</Row>
           <Row glyph={<span className="border-2 border-[#F59E0B] px-1 font-mono font-bold">S815-K450</span>}>Item code in a table. Click it to add the item to your quotation.</Row>
-          <Row glyph={<span className="font-bold">Click page</span>}>Click the page to zoom to 2x, then 3x, then back to fit. Codes and buttons on it still work. While zoomed, move the mouse to look around.</Row>
+          <Row glyph={<span className="font-bold">Click picture</span>}>Click the catalogue picture to zoom to 2x, then 3x, then back to fit. Only the picture moves; the page stays put and its codes still work. While zoomed, move the mouse to look around.</Row>
           <Row glyph={<span className="font-bold">Top edge</span>}>Move the mouse to the top edge of the page to open the section menu.</Row>
           <Row glyph={<span className="inline-block h-6 w-6 rounded-full" style={{ background: 'conic-gradient(#2f9e44 0 25%, #1d5a78 0 50%, #e3a008 0 75%, #8e44ad 0)' }} />}>Colour wheel: point at a wedge for its name, click to open the category.</Row>
           <Row glyph={<span className="rounded bg-green-200 px-1.5 text-xs font-semibold text-green-900">Verified</span>}>Data was checked against the original catalogue. Not available means the data is not in the system.</Row>

@@ -48,20 +48,21 @@ export default function AddToBom({ productId, hideLinks = false }: { productId: 
     } catch (e) { setMsg({ ok: false, text: (e as Error).message }) } finally { setBusy(false) }
   }
 
-  const f = 'border border-steel-300 px-2 py-2 bg-white text-sm'
+  const f = 'w-full rounded-sm border border-steel-300 bg-white px-3 py-2 text-sm focus:border-brand-green focus:outline-none focus:ring-2 focus:ring-brand-green/30'
   return (
     <div className="space-y-2 text-sm">
-      <div className="flex flex-wrap items-end gap-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-steel-800">Add to a bill of materials</p>
+      <div className="grid grid-cols-[1fr_5rem] items-end gap-2">
         {boms.length > 0 ? (
-          <div><label htmlFor="ab" className="block text-xs text-steel-600">BOM</label>
+          <div><label htmlFor="ab" className="mb-1 block text-xs font-medium text-steel-800">BOM</label>
             <select id="ab" className={f} value={bom} onChange={(e) => setBom(e.target.value)}>{boms.map((b) => <option key={b.id} value={b.id}>{b.reference} {b.name}</option>)}</select></div>
         ) : (
-          <div><label htmlFor="nb" className="block text-xs text-steel-600">New BOM name</label>
-            <input id="nb" className={f} value={newName} maxLength={200} onChange={(e) => setNewName(e.target.value)} /></div>)}
-        <div><label htmlFor="aq" className="block text-xs text-steel-600">Qty</label>
-          <input id="aq" type="number" min={1} max={100000} className={`${f} w-20`} value={qty} onChange={(e) => setQty(Math.max(1, Math.min(100000, Number(e.target.value) || 1)))} /></div>
-        <button onClick={() => void add()} disabled={busy} className="bg-belt-700 text-white px-4 py-2 disabled:opacity-60">Add to BOM</button>
+          <div><label htmlFor="nb" className="mb-1 block text-xs font-medium text-steel-800">New BOM name</label>
+            <input id="nb" className={f} value={newName} maxLength={200} placeholder="For example: Line 3 conveyor" onChange={(e) => setNewName(e.target.value)} /></div>)}
+        <div><label htmlFor="aq" className="mb-1 block text-xs font-medium text-steel-800">Qty</label>
+          <input id="aq" type="number" min={1} max={100000} className={`${f} text-center`} value={qty} onChange={(e) => setQty(Math.max(1, Math.min(100000, Number(e.target.value) || 1)))} /></div>
       </div>
+      <button onClick={() => void add()} disabled={busy} className="w-full rounded-sm bg-belt-700 px-4 py-2 font-semibold text-white hover:opacity-90 disabled:opacity-60">{busy ? 'Adding…' : 'Add to BOM'}</button>
       {msg && <p role="status" className={msg.ok ? 'text-green-800' : 'text-red-700'}>{msg.text} {msg.ok && !hideLinks && <Link className="underline" to="/bom">Open BOM</Link>}</p>}
     </div>
   )
